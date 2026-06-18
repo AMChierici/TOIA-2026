@@ -1,6 +1,4 @@
 defmodule ToiaWeb.Plugs.Auth do
-  alias Toia.ToiaUsers
-
   def init(opts) do
     opts
   end
@@ -37,13 +35,8 @@ defmodule ToiaWeb.Plugs.Auth do
     end
   end
 
-  def ensureVerified(user) do
-    user = ToiaUsers.get_toia_user_by_email!(user.email)
-
-    if user.verified do
-      {:ok, user}
-    else
-      {:error, "Email not verified"}
-    end
-  end
+  # `resource_from_claims` already loaded the full user (including :verified),
+  # so check the loaded record instead of issuing another query per request.
+  def ensureVerified(%{verified: true} = user), do: {:ok, user}
+  def ensureVerified(_user), do: {:error, "Email not verified"}
 end
