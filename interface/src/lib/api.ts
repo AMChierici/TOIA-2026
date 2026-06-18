@@ -53,6 +53,14 @@ export interface QuestionSuggestion {
   trigger_suggester?: boolean;
 }
 
+export interface NextVideo {
+  answer: string;
+  id_video: string;
+  url: string;
+  vtt_url?: string;
+  ada_similarity_score: number;
+}
+
 export const api = {
   login: (email: string, password: string) =>
     http.post<AuthResponse>("/auth/login", { email, password }).then((r) => r.data),
@@ -73,5 +81,18 @@ export const api = {
   // QuestionSuggestionJSON.index renders a bare array.
   listSuggestions: () =>
     http.get<QuestionSuggestion[]>("/question_suggestions").then((r) => r.data),
+
+  // Ask the dialogue manager for the best matching recorded answer.
+  nextVideo: (streamId: number | string, question: string, language = "en-US") =>
+    http
+      .post<NextVideo>(
+        `/stream/${streamId}/next?question=${encodeURIComponent(question)}`,
+        { params: { language } },
+      )
+      .then((r) => r.data),
+
+  // Returns a filler video URL as plain text.
+  getFiller: (streamId: number | string) =>
+    http.get(`/stream/${streamId}/filler`, { responseType: "text" }).then((r) => r.data as string),
 };
 

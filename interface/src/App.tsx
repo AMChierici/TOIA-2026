@@ -6,6 +6,7 @@ import { ExplorePage } from "@/pages/explore";
 import { LoginPage } from "@/pages/login";
 import { SignupPage } from "@/pages/signup";
 import { DashboardPage } from "@/pages/dashboard";
+import { PlayerPage } from "@/pages/player";
 import { ComingSoonPage } from "@/pages/coming-soon";
 import { NotFoundPage } from "@/pages/not-found";
 
@@ -33,7 +34,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="stream/:id" element={<ComingSoonPage title="Stream player" />} />
+        <Route path="stream/:id" element={<PlayerPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
