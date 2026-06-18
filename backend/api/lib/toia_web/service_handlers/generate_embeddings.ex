@@ -10,7 +10,6 @@ defmodule ServiceHandlers.GenerateEmbeddings do
   def process_request_headers(_headers) do
     [
       {"Content-Type", "application/json"},
-      {"OpenAI-Organization", System.get_env("YOUR_ORG_ID")},
       {"Authorization", "Bearer #{System.get_env("OPENAI_API_KEY")}"}
     ]
   end
@@ -19,7 +18,7 @@ defmodule ServiceHandlers.GenerateEmbeddings do
     query = "Question: #{question}; Answer: #{answer}"
 
     payload = %{
-      model: "text-search-ada-doc-001",
+      model: "text-embedding-3-small",
       input: query
     }
 

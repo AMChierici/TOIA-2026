@@ -1,11 +1,9 @@
-server/node_modules
-server/Dockerfile
-server/.idea
-server/.gitignore
 .dockerignore
-server/package-lock.json
-server/interface
+.git
+.env
+*/.env
 
+# Elixir build artifacts (backend/api)
 backend/api/_build/
 backend/api/cover/
 backend/api/deps/
@@ -18,32 +16,17 @@ backend/api/toia-*.tar
 backend/api/Accounts/
 backend/api/*.env
 backend/api/secrets/
-backend/api/lib/toia_web/services/node_modules
-backend/api/lib/toia_web/services/.gitignore
-backend/api/lib/toia_web/services/.env
-backend/api/lib/toia_web/services/secrets/
+
+# Python services
 backend/q_api/.idea
-backend/q_api/Dockerfile
-backend/q_api/.gitignore
-backend/q_api/.dockerignore
 backend/q_api/.env
-backend/speech-to-text/gcloud/node_modules/
-backend/speech-to-text/gcloud/.env
-backend/speech-to-text/gcloud/toia-capstone-2021-b944d1cc65aa.json
-backend/speech-to-text/gcloud/toia-capstone-2021-a17d9d7dd482.json
-backend/speech-to-text/gcloud/secrets/
+backend/q_api/__pycache__/
 backend/toia-dm/.idea
-backend/toia-dm/Dockerfile
-backend/toia-dm/.gitignore
-backend/toia-dm/.dockerignore
 backend/toia-dm/.env
 backend/toia-dm/test/
-backend/toia-dm/old_toia-dm_files/
 backend/toia-dm/notebooks/
-backend/translation/Transcripts/
-backend/translation/secrets/
-backend/translation/.env
+backend/toia-dm/__pycache__/
+
+# Frontend
 interface/build
 interface/node_modules
-interface/.gitignore
-server/.env

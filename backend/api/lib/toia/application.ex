@@ -17,6 +17,8 @@ defmodule Toia.Application do
       {Phoenix.PubSub, name: Toia.PubSub},
       # Start Finch
       {Finch, name: Toia.Finch},
+      # Supervises background subtitle/translation tasks
+      {Task.Supervisor, name: ServiceHandlers.TranslationSupervisor},
       # Start the Endpoint (http/https)
       ToiaWeb.Endpoint
       # Start a worker by calling: Toia.Worker.start_link(arg)
