@@ -5,14 +5,15 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
-const navItems = [
-  { to: "/", label: "Home", end: true },
-  { to: "/explore", label: "Explore" },
-];
-
 export function AppShell() {
   const [open, setOpen] = useState(false);
   const { isAuthenticated, user, logout } = useAuth();
+
+  const navItems = [
+    { to: "/", label: "Home", end: true },
+    { to: "/explore", label: "Explore" },
+    ...(isAuthenticated ? [{ to: "/mytoia", label: "My TOIA" }] : []),
+  ];
 
   return (
     <div className="flex min-h-screen flex-col">

@@ -39,7 +39,7 @@ export function SignupPage() {
       const res = await api.signup(data);
       setToken(res.token);
       localStorage.setItem("toia_user", JSON.stringify(res.data));
-      navigate("/");
+      navigate("/mytoia");
     } catch {
       setError("Could not create the account. Please check your details.");
     } finally {

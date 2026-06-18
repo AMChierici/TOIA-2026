@@ -26,7 +26,7 @@ export function LoginPage() {
     setSubmitting(true);
     try {
       await login(email, password);
-      navigate("/");
+      navigate("/mytoia");
     } catch {
       setError("Invalid email or password.");
     } finally {
