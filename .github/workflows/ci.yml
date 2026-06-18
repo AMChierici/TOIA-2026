@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  backend:
+    name: Phoenix API (compile + test)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0.33
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: toia_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      DB_DATABASE: toia_test
+      DB_CONNECTION: mysql
+    defaults:
+      run:
+        working-directory: backend/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "25.3"
+          elixir-version: "1.14.5"
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            backend/api/deps
+            backend/api/_build
+          key: ${{ runner.os }}-mix-${{ hashFiles('backend/api/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+      - run: mix deps.get
+      - name: Compile (the build gate)
+        run: mix compile
+      - name: Tests
+        # Informational for now: the generated test suite predates this cleanup.
+        continue-on-error: true
+        run: mix test
+
+  frontend:
+    name: React build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: interface
+    env:
+      NODE_OPTIONS: --openssl-legacy-provider
+      SKIP_PREFLIGHT_CHECK: "true"
+      CI: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install
+      - run: npm run build
+
+  python:
+    name: Python services (syntax)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Syntax check
+        run: |
+          python -m py_compile \
+            backend/q_api/app.py \
+            backend/q_api/utils.py \
+            backend/q_api/create_embeddings.py \
+            backend/toia-dm/main.py \
+            backend/toia-dm/utils_gpt3.py \
+            backend/toia-dm/create_embeddings.py

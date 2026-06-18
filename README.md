@@ -1,81 +1,111 @@
-# TOIA-2.0
+# TOIA
 
-This is a repository for the TOIA 2.0 System.
+TOIA is an interactive video-conversation platform. People record short video
+answers to questions ("avatars" / "streams"), and visitors can then hold a
+text-driven conversation that plays back the most relevant recorded answer,
+with AI-suggested follow-up questions.
 
+## Architecture
 
-# Developer Setup
+The whole product runs as a small set of services. The **Phoenix API** builds
+and serves the React frontend *and* exposes the JSON API, so for most purposes
+it is the only public service.
 
-## Environment Variables
+```
+                         ┌─────────────────────────────┐
+   Browser ───────────►  │  api  (Elixir / Phoenix)    │  :4000
+                         │  • serves React app at /    │
+                         │  • JSON API at /api         │
+                         │  • media (videos) at /media │
+                         └───────┬───────────┬─────────┘
+                                 │           │
+                 ┌───────────────┘           └───────────────┐
+                 ▼                                            ▼
+        ┌─────────────────┐                        ┌────────────────────┐
+        │ q_api (Python)  │ :5000                  │ toia-dm (Python)   │ :5001
+        │ question        │                        │ dialogue manager   │
+        │ suggestions     │                        │ (answer matching)  │
+        └─────────────────┘                        └────────────────────┘
+                 │                                            │
+                 └─────────────────► MySQL ◄──────────────────┘
+```
 
-There are three `.env` files. One in the root directory, one in the `/interface` and the other one in `/server`
+- **`backend/api`** — Elixir/Phoenix. Auth (JWT/Guardian), users, streams,
+  videos, playback, and orchestration. Serves the compiled React app.
+- **`interface`** — React frontend (built into the Phoenix app for deploys; can
+  also be run on its own during UI development).
+- **`backend/q_api`** — Python/Flask. Generates follow-up question suggestions.
+- **`backend/toia-dm`** — Python/FastAPI. Dialogue manager: picks the best
+  recorded answer for an incoming question via embedding similarity.
+- **MySQL** — primary datastore (schema lives in Ecto migrations).
 
-### `.env` in root:
+### External services
 
-    EXPRESS_PORT=3001
-    DM_PORT=5001
-    
-    ENVIRONMENT=development
-    
-    EXPRESS_HOST=http://localhost
-    DM_ROUTE=http://toia-dm:5001/dialogue_manager
-    Q_API_ROUTE=http://q_api:5000/generateNextQ
-    
-    DB_CONNECTION=mysql
-    DB_DATABASE=toia
-    
-    DB_HOST=mysql
-    DB_USERNAME=root
-    DB_PASSWORD=
-    
-    GC_BUCKET=
-    GOOGLE_SPEECH_API_CREDENTIALS_FILE=/speech_to_text/toia-capstone-2021-b944d1cc65aa.json
-    GOOGLE_CLOUD_STORE_CREDENTIALS_FILE=/toia-capstone-2021-a17d9d7dd482.json
-    
-    OPENAI_API_KEY=
+After the cleanup the external footprint is intentionally tiny:
 
-1. Set the `DB_PASSWORD`
-2. Set the `GC_BUCKET` to the bucket-name
-3. Place the gcloud credential files to their respective directories:
-   1. place `toia-capstone-2021-b944d1cc65aa.json` to `TOIA-2.0/server/speech_to_text/`
-   2. place `toia-capstone-2021-a17d9d7dd482.json` to `TOIA-2.0/server/`
-   3. Do not change the locations defined in the `.env` file above as those are relative to `server/`
-4. Set the value for `OPENAI_API_KEY `
+| Need | Service | Required? |
+|------|---------|-----------|
+| LLM, embeddings, transcription | **OpenAI** (`OPENAI_API_KEY`) | **Yes** |
+| Signup email verification | Resend (`RESEND_API_KEY`) | No — off by default |
 
-### `.env` in toia-dm:
+Recorded videos are stored on the local filesystem (a Docker/cloud **volume**),
+served by Phoenix at `/media`. There is no Google Cloud, no S3, and no message
+broker.
 
-Use same file as root
+## Quick start (local, Docker)
 
-### `.env` in interface
+Prerequisites: Docker + Docker Compose.
 
-    SKIP_PREFLIGHT_CHECK=true
+```bash
+cp .env.example .env
+# edit .env: set DB_PASSWORD and OPENAI_API_KEY
+docker compose up --build
+```
 
-### `.env` in server is empty. Feel free to add any variable specific to server
+Then open **http://localhost:4000**.
 
-Note: It's probably a good idea to place Google cloud related environment variables to `.env` in `server/` but it would require some changes to the code. I'll update the ReadMe file when I make this change.
+- API health check: `GET http://localhost:4000/api/health`
+- Optional DB admin UI (phpMyAdmin): http://localhost:8080
+- The database and recorded media persist in named Docker volumes
+  (`mysql_data`, `api_media`). Use `docker compose down -v` to wipe them.
 
-## Database Migration
+Email verification is disabled by default (`REQUIRE_EMAIL_VERIFICATION=false`),
+so new accounts can log in immediately without any email provider.
 
-1. Create a folder called `Accounts` in the server folder, if it does not exist. 
-2. Copy the video folders to the `Accounts` folder provided by admin.
-3. Navigate to [localhost:8080](localhost:8080) with the username and password provided in `.env` in the root folder.
-4. Drop all the tables in toia (if needed backup the current toia db using export).
-5. Import the database sql file into the toia table. 
+## Frontend development
 
-## Running the app
+The Docker stack serves a production build of the React app. For fast UI
+iteration, run the dev server separately against the running API:
 
-Make sure you have installed docker and the docker daemon is running.
+```bash
+cd interface
+cp .env.example .env
+npm install
+npm start          # http://localhost:3000, talks to the API on :4000
+```
 
-#### Development mode
+## Configuration
 
-    docker-compose -f docker-compose-dev.yml up
+All configuration is via environment variables — see [`.env.example`](.env.example)
+for the full, documented list. The only required external key is
+`OPENAI_API_KEY`.
 
-Making Changes Under Development Mode
+## Deployment
 
-- The docker-compose file is setup such that react and nodejs changes are reflected as soon as you change the files in `/interface` or `/server`
-- If you change anything inside `/server/q_api` or `/server/toia-dm`, you have to restart that particular container. 
-- By default, the files and database are persistent under development mode (Check volume mounts in `docker-compose-dev.yml`). If you wish to start a fresh environment, run `docker-compose down -v` to make sure all the volumes are purged when shutting down the containers. Then start the containers using the command above.
-- If the dialogue manager (toia-dm) shuts down when running in docker, change docker settings to allow more RAM (check [this](https://stackoverflow.com/questions/44533319/how-to-assign-more-memory-to-docker-container)). 
+The recommended target is **Railway** (managed MySQL + volumes + Docker builds).
+See [`docs/deploy-railway.md`](docs/deploy-railway.md). A `render.yaml` blueprint
+is also provided for Render, and `docker-compose.prod.yml` for self-hosting.
 
-#### Production mode
+## Notes / known follow-ups
 
-- Change the `ENVIRONMENT` variable in .env file to production and run `docker-compose up`
+- **Subtitles** are temporarily disabled. The previous Google-Cloud
+  speech-to-text + translation pipeline (and its RabbitMQ broker) has been
+  removed; the replacement transcribes uploads with OpenAI Whisper and
+  translates cues with the LLM, written as `.vtt` files. This is stubbed as a
+  background task in `backend/api/lib/toia_web/service_handlers/translation.ex`.
+- **Embedding backfill:** the OpenAI models were migrated to current ones, so
+  embeddings previously stored in `videos_questions_streams.ada_search` must be
+  recomputed once (run `backend/q_api/create_embeddings.py` /
+  `backend/toia-dm/create_embeddings.py` against a populated DB) before
+  similarity search / smart questions return good matches.
+- See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development workflow.

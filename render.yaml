@@ -1,0 +1,136 @@
+# Render Blueprint for TOIA.
+#
+# IMPORTANT: Render has no managed MySQL (only PostgreSQL), so MySQL runs here as
+# a private service backed by a disk. For production you may prefer an external
+# managed MySQL (PlanetScale, Aiven, etc.) and then delete the `mysql` service
+# below and point DB_* / DATABASE_URL at it.
+#
+# Railway is the smoother option for this stack — see docs/deploy-railway.md.
+services:
+  # ---- MySQL (private service + disk) ----
+  - type: pserv
+    name: mysql
+    runtime: image
+    image:
+      url: mysql:8.0.33
+    disk:
+      name: mysql-data
+      mountPath: /var/lib/mysql
+      sizeGB: 10
+    envVars:
+      - key: MYSQL_ROOT_PASSWORD
+        generateValue: true
+      - key: MYSQL_DATABASE
+        value: toia
+
+  # ---- Phoenix API (public; serves the React app) ----
+  - type: web
+    name: api
+    runtime: docker
+    dockerfilePath: ./backend/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    disk:
+      name: api-media
+      mountPath: /app/Accounts
+      sizeGB: 10
+    envVars:
+      - key: MIX_ENV
+        value: prod
+      - key: PHX_SERVER
+        value: "true"
+      - key: PORT
+        value: "4000"
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_DATABASE
+        value: toia
+      - key: DB_USERNAME
+        value: root
+      - key: DB_HOST
+        fromService:
+          name: mysql
+          type: pserv
+          property: host
+      - key: DB_PASSWORD
+        fromService:
+          name: mysql
+          type: pserv
+          envVarKey: MYSQL_ROOT_PASSWORD
+      - key: SECRET_KEY_BASE
+        generateValue: true
+      - key: GUARDIAN_SECRET_KEY
+        generateValue: true
+      # Set these in the Render dashboard (secrets / your domain):
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: API_URL
+        sync: false
+      - key: PHX_HOST
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: Q_API_ROUTE
+        value: http://q_api:5000/generateNextQ
+      - key: DM_ROUTE
+        value: http://toia-dm:5001/dialogue_manager
+      - key: REQUIRE_EMAIL_VERIFICATION
+        value: "false"
+
+  # ---- Question suggestions (private) ----
+  - type: pserv
+    name: q_api
+    runtime: docker
+    dockerfilePath: ./backend/q_api/Dockerfile
+    dockerContext: ./backend/q_api
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_DATABASE
+        value: toia
+      - key: DB_USERNAME
+        value: root
+      - key: DB_HOST
+        fromService:
+          name: mysql
+          type: pserv
+          property: host
+      - key: DB_PASSWORD
+        fromService:
+          name: mysql
+          type: pserv
+          envVarKey: MYSQL_ROOT_PASSWORD
+      - key: OPENAI_API_KEY
+        sync: false
+
+  # ---- Dialogue manager (private; needs more RAM) ----
+  - type: pserv
+    name: toia-dm
+    runtime: docker
+    dockerfilePath: ./backend/toia-dm/Dockerfile
+    dockerContext: ./backend/toia-dm
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DM_PORT
+        value: "5001"
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_DATABASE
+        value: toia
+      - key: DB_USERNAME
+        value: root
+      - key: DB_HOST
+        fromService:
+          name: mysql
+          type: pserv
+          property: host
+      - key: DB_PASSWORD
+        fromService:
+          name: mysql
+          type: pserv
+          envVarKey: MYSQL_ROOT_PASSWORD
+      - key: OPENAI_API_KEY
+        sync: false
