@@ -77,4 +77,31 @@ defmodule Toia.ToiaUsersTest do
       assert %Ecto.Changeset{} = ToiaUsers.change_toia_user(toia_user)
     end
   end
+
+  describe "avatar" do
+    alias Toia.ToiaUsers.ToiaUser
+    import Ecto.Changeset
+
+    test "changeset accepts the avatar flag" do
+      cs =
+        ToiaUser.changeset(%ToiaUser{}, %{
+          first_name: "Sam",
+          last_name: "Lee",
+          language: "en-US",
+          email: "sam@example.com",
+          password: "secret",
+          avatar: true
+        })
+
+      assert cs.valid?
+      assert get_change(cs, :avatar) == true
+    end
+
+    test "get_avatar_url/1 is nil without an avatar and a url when set" do
+      assert ToiaUsers.get_avatar_url(%ToiaUser{avatar: false}) == nil
+
+      url = ToiaUsers.get_avatar_url(%ToiaUser{id: 7, first_name: "Sam", avatar: true})
+      assert url =~ "/media/Sam_7/ProfilePic/avatar.jpg"
+    end
+  end
 end

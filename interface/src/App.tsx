@@ -9,6 +9,7 @@ import { SignupPage } from "@/pages/signup";
 import { DashboardPage } from "@/pages/dashboard";
 import { PlayerPage } from "@/pages/player";
 import { RecorderPage } from "@/pages/recorder";
+import { SettingsPage } from "@/pages/settings";
 import { NotFoundPage } from "@/pages/not-found";
 
 export default function App() {
@@ -33,6 +34,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <RecorderPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="settings"
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
             </ProtectedRoute>
           }
         />

@@ -19,6 +19,7 @@ export interface AuthUser {
   first_name: string;
   last_name: string;
   language: string;
+  avatarURL?: string | null;
 }
 
 export interface AuthResponse {
@@ -33,6 +34,8 @@ export interface Stream {
   likes: number;
   views: number;
   toia_id: number;
+  language?: string | null;
+  bio?: string | null;
   videos_count?: number;
   pic?: string | null;
 }
@@ -167,8 +170,19 @@ export const api = {
   createStream: (form: FormData) =>
     http.post<Stream[]>("/stream", form).then((r) => r.data),
 
-  // Edit an existing stream's name / privacy (owner only). Returns the stream.
-  updateStream: (id: number | string, changes: { name?: string; private?: boolean }) =>
-    http.patch<Stream>(`/stream/${id}`, { stream: changes }).then((r) => r.data),
+  // Edit an existing stream's name / privacy / language / bio (owner only).
+  updateStream: (
+    id: number | string,
+    changes: { name?: string; private?: boolean; language?: string; bio?: string },
+  ) => http.patch<Stream>(`/stream/${id}`, { stream: changes }).then((r) => r.data),
+
+  // Current user's profile (ToiaUserJSON wraps it in { data }).
+  getProfile: () =>
+    http.get<{ data: AuthUser }>("/toia_user").then((r) => r.data.data),
+
+  // Update the current user's settings. `form` may include first_name,
+  // last_name, language, and an optional "avatar" image file.
+  updateProfile: (form: FormData) =>
+    http.patch<{ data: AuthUser }>("/toia_user/profile", form).then((r) => r.data.data),
 };
 

@@ -62,4 +62,23 @@ defmodule Toia.StreamsTest do
       assert %Ecto.Changeset{} = Streams.change_stream(stream)
     end
   end
+
+  describe "stream changeset language & bio" do
+    alias Toia.Streams.Stream
+    import Ecto.Changeset
+
+    @base %{name: "Career", private: false, likes: 0, views: 0, toia_id: 1}
+
+    test "accepts language and bio" do
+      cs = Stream.changeset(%Stream{}, Map.merge(@base, %{language: "fr-FR", bio: "Ask me about work"}))
+      assert cs.valid?
+      assert get_change(cs, :language) == "fr-FR"
+      assert get_change(cs, :bio) == "Ask me about work"
+    end
+
+    test "language and bio are optional" do
+      cs = Stream.changeset(%Stream{}, @base)
+      assert cs.valid?
+    end
+  end
 end

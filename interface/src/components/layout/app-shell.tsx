@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
-import { Menu, X, Video } from "lucide-react";
+import { Menu, X, Video, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LanguageSelector } from "@/components/language-selector";
 import { useAuth } from "@/lib/auth";
@@ -54,9 +54,20 @@ export function AppShell() {
             <LanguageSelector />
             {isAuthenticated ? (
               <>
-                <span className="text-sm text-muted-foreground">
+                <Link
+                  to="/settings"
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                  title={t("nav.settings")}
+                >
+                  {user?.avatarURL ? (
+                    <img src={user.avatarURL} alt="" className="size-7 rounded-full object-cover" />
+                  ) : (
+                    <span className="flex size-7 items-center justify-center rounded-full bg-muted">
+                      <User className="size-4" />
+                    </span>
+                  )}
                   {t("nav.greeting", { name: user?.first_name ?? "" })}
-                </span>
+                </Link>
                 <Button variant="outline" size="sm" onClick={logout}>
                   {t("nav.logout")}
                 </Button>
@@ -106,9 +117,14 @@ export function AppShell() {
               <div className="mt-2 flex flex-col gap-2">
                 <LanguageSelector className="self-start" />
                 {isAuthenticated ? (
-                  <Button variant="outline" onClick={() => { setOpen(false); logout(); }}>
-                    {t("nav.logout")}
-                  </Button>
+                  <>
+                    <Button asChild variant="ghost" className="justify-start">
+                      <Link to="/settings" onClick={() => setOpen(false)}>{t("nav.settings")}</Link>
+                    </Button>
+                    <Button variant="outline" onClick={() => { setOpen(false); logout(); }}>
+                      {t("nav.logout")}
+                    </Button>
+                  </>
                 ) : (
                   <>
                     <Button asChild variant="outline">

@@ -63,7 +63,10 @@ export function ExplorePage() {
               </div>
               <CardContent className="p-4">
                 <h3 className="font-semibold">{stream.name}</h3>
-                <p className="text-sm text-muted-foreground">
+                {stream.bio && (
+                  <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{stream.bio}</p>
+                )}
+                <p className="mt-1 text-sm text-muted-foreground">
                   {stream.videos_count ?? 0} videos · {stream.views} views
                 </p>
               </CardContent>

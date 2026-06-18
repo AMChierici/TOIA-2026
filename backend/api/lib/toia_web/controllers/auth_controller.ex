@@ -24,7 +24,8 @@ defmodule ToiaWeb.AuthController do
               email: user.email,
               first_name: user.first_name,
               last_name: user.last_name,
-              language: user.language
+              language: user.language,
+              avatarURL: ToiaUsers.get_avatar_url(user)
             }
           })
         end

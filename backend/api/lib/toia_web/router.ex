@@ -63,6 +63,8 @@ defmodule ToiaWeb.Router do
 
     # legacy: /api/getUserVideosCount, /api/getTotalVideoDuration
     get("/toia_user/stats", ToiaUserController, :stats)
+    # User settings: update the current user's profile (name/language/avatar)
+    patch("/toia_user/profile", ToiaUserController, :update_profile)
     # legacy: /api/getUserData
     get("/toia_user/:user_id", ToiaUserController, :show)
     get("/toia_user/", ToiaUserController, :show)
