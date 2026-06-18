@@ -11,8 +11,8 @@ WORKDIR /app
 ENV NODE_OPTIONS=--openssl-legacy-provider \
     SKIP_PREFLIGHT_CHECK=true \
     CI=false
-COPY interface/package.json interface/.npmrc ./
-RUN npm install
+COPY interface/package.json interface/package-lock.json interface/.npmrc ./
+RUN npm ci
 COPY interface/ ./
 RUN npm run build && node css-fix.js
 
