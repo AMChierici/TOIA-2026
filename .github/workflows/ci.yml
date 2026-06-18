@@ -52,20 +52,16 @@ jobs:
         run: mix test
 
   frontend:
-    name: React build
+    name: React build (Vite + TS)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: interface
-    env:
-      NODE_OPTIONS: --openssl-legacy-provider
-      SKIP_PREFLIGHT_CHECK: "true"
-      CI: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: interface/package-lock.json
       - run: npm ci

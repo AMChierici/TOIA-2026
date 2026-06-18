@@ -3,18 +3,13 @@
 # the API (/api) and the compiled React app (/).
 # =============================================================================
 
-# ---- Stage 1: build the React frontend --------------------------------------
-FROM node:20-alpine AS react_build
+# ---- Stage 1: build the React frontend (Vite) -------------------------------
+FROM node:22-alpine AS react_build
 WORKDIR /app
-# react-scripts 4 / webpack 4 need the legacy OpenSSL provider on Node 17+.
-# CI=false keeps build warnings from being treated as errors.
-ENV NODE_OPTIONS=--openssl-legacy-provider \
-    SKIP_PREFLIGHT_CHECK=true \
-    CI=false
 COPY interface/package.json interface/package-lock.json interface/.npmrc ./
 RUN npm ci
 COPY interface/ ./
-RUN npm run build && node css-fix.js
+RUN npm run build
 
 # ---- Stage 2: build & run the Phoenix app -----------------------------------
 FROM elixir:1.14-otp-25-slim AS app
@@ -34,7 +29,7 @@ RUN mix deps.get
 COPY backend/api/ ./
 
 # Serve the compiled React app from Phoenix's static dir
-COPY --from=react_build /app/build priv/static
+COPY --from=react_build /app/dist priv/static
 
 RUN chmod +x run_prod.sh
 
