@@ -4,6 +4,8 @@ import { useMutation } from "@tanstack/react-query";
 import { Mic, Send, ThumbsDown, ThumbsUp } from "lucide-react";
 import { api, type NextVideo } from "@/lib/api";
 import { useSpeechToText } from "@/lib/use-speech";
+import { useI18n } from "@/lib/i18n";
+import { LANGUAGES } from "@/lib/i18n-core";
 import { VoiceIndicator } from "@/components/voice-indicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +14,8 @@ import { cn } from "@/lib/utils";
 
 export function PlayerPage() {
   const { id } = useParams<{ id: string }>();
+  const { t, lang } = useI18n();
+  const locale = LANGUAGES.find((l) => l.code === lang)?.locale ?? "en-US";
   const [question, setQuestion] = useState("");
   const [current, setCurrent] = useState<NextVideo | null>(null);
   const [lastQuestion, setLastQuestion] = useState("");
@@ -20,7 +24,7 @@ export function PlayerPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const ask = useMutation({
-    mutationFn: (q: string) => api.nextVideo(id!, q),
+    mutationFn: (q: string) => api.nextVideo(id!, q, locale),
     onSuccess: (res, q) => {
       setCurrent(res);
       setLastQuestion(q);
@@ -41,7 +45,7 @@ export function PlayerPage() {
     [ask],
   );
 
-  const speech = useSpeechToText(submitQuestion);
+  const speech = useSpeechToText(submitQuestion, locale);
 
   const feedback = useMutation({
     mutationFn: (rating: number) =>
@@ -91,7 +95,7 @@ export function PlayerPage() {
           <Input
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder={speech.listening ? "Listening…" : "Ask something…"}
+            placeholder={speech.listening ? t("player.listening") : t("player.placeholder")}
             aria-label="Your question"
           />
           {speech.supported && (
@@ -106,13 +110,13 @@ export function PlayerPage() {
             </Button>
           )}
           <Button type="submit" disabled={ask.isPending}>
-            <Send /> {ask.isPending ? "Thinking…" : "Ask"}
+            <Send /> {ask.isPending ? t("player.thinking") : t("player.ask")}
           </Button>
         </form>
         {(speech.listening || ask.isPending) && (
           <VoiceIndicator
             active
-            label={speech.listening ? "Listening…" : "Finding the best answer…"}
+            label={speech.listening ? t("player.listening") : t("player.thinking")}
           />
         )}
         {ask.isError && (
