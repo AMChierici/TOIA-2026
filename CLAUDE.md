@@ -33,3 +33,11 @@ untestable shell stays thin.
 - `interface/` — Vite + React 18 + TypeScript + Tailwind SPA (the user-facing app)
 - `backend/api/` — Phoenix (Elixir) JSON API
 - `backend/q_api/`, `backend/toia-dm/` — Python services (question API, dialogue manager)
+
+## Collaboration / Git policy
+
+- **Pull requests:** open them freely — no need to ask first. When a unit of
+  work is pushed, opening a PR against `master` is the expected default.
+- **Merging:** never merge a PR without the maintainer's explicit permission.
+  Wait for the go-ahead before merging or enabling auto-merge.
+
