@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CreateStreamDialog } from "@/components/create-stream-dialog";
 
 function formatDuration(seconds: number) {
   if (!seconds) return "0m";
@@ -43,11 +44,14 @@ export function DashboardPage() {
           <h1 className="text-3xl font-bold tracking-tight">My TOIA</h1>
           <p className="text-muted-foreground">Welcome back, {user?.first_name}.</p>
         </div>
-        <Button asChild>
-          <Link to="/record">
-            <Plus /> Record a video
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <CreateStreamDialog />
+          <Button asChild>
+            <Link to="/record">
+              <Plus /> Record a video
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">

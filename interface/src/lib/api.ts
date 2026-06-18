@@ -98,5 +98,10 @@ export const api = {
   // Upload a recorded video. `form` must include the blob under "video".
   createVideo: (form: FormData) =>
     http.post<{ videoID: string }>("/video", form).then((r) => r.data),
+
+  // Create a stream. `form` must include name, private, and a stream_pic file.
+  // Returns the user's full stream list.
+  createStream: (form: FormData) =>
+    http.post<Stream[]>("/stream", form).then((r) => r.data),
 };
 
