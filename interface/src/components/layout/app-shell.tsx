@@ -12,6 +12,7 @@ export function AppShell() {
   const navItems = [
     { to: "/", label: "Home", end: true },
     { to: "/explore", label: "Explore" },
+    { to: "/about", label: "About" },
     ...(isAuthenticated ? [{ to: "/mytoia", label: "My TOIA" }] : []),
   ];
 

@@ -3,6 +3,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedRoute } from "@/components/protected-route";
 import { LandingPage } from "@/pages/landing";
 import { ExplorePage } from "@/pages/explore";
+import { AboutPage } from "@/pages/about";
 import { LoginPage } from "@/pages/login";
 import { SignupPage } from "@/pages/signup";
 import { DashboardPage } from "@/pages/dashboard";
@@ -16,6 +17,7 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route index element={<LandingPage />} />
         <Route path="explore" element={<ExplorePage />} />
+        <Route path="about" element={<AboutPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="signup" element={<SignupPage />} />
         <Route
