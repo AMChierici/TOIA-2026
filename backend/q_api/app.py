@@ -244,14 +244,14 @@ def generateNextQ(api=API):
     #     suggestions = [bert_filtered_qs[i][1] for i in range(n_suggestions) if bert_filtered_qs[i][1] != bert_filtered_qs[i + 1][1]]     
         
     # elif api == "GPT-3":      
-    response = openai.Completion.create(
-        engine="text-davinci-001",
-        prompt=prompt,
+    response = openai.ChatCompletion.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
         temperature=0.7,
         max_tokens=250
     )
-    
-    generation = response.choices[0]['text']
+
+    generation = response.choices[0]['message']['content']
     # split sentences into list
     suggestions = nltk.tokenize.sent_tokenize(generation)
 
@@ -388,15 +388,15 @@ def generateSmartQ(api=API):
         
     # elif api == "GPT-3":      
     # print("Checkpoint 3: Sending request to AI...")
-    response = openai.Completion.create(
-        engine="text-davinci-002",
-        prompt=prompt,
+    response = openai.ChatCompletion.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
         temperature=0,
         max_tokens=250,
     )
-    
-    generation = response.choices[0]['text']
-    
+
+    generation = response.choices[0]['message']['content']
+
     # split sentences into list
     suggestions = nltk.tokenize.sent_tokenize(generation)
 

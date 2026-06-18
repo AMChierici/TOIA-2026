@@ -37,11 +37,11 @@ print("Connected successfully!")
 
 def adaSimilarity(x):
     time.sleep(1)
-    return get_embedding(x, engine='text-similarity-ada-001')
+    return get_embedding(x, engine='text-embedding-3-small')
 
 def adaSearch(x):
     time.sleep(1)
-    return get_embedding(x, engine='text-search-ada-doc-001')
+    return get_embedding(x, engine='text-embedding-3-small')
 
 def addAdaSearch(toiaID):
     retrieve_statement = text("""

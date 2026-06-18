@@ -11,7 +11,8 @@ import json
 
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-ADA_VECTOR_LENGTH=1024
+# Dimensionality of text-embedding-3-small vectors
+ADA_VECTOR_LENGTH=1536
 
 def json_loads_with_null(val):
     if (val == None):
@@ -43,7 +44,7 @@ def getFirstNSimilar(df_avatar, query, NUM_SHORTLIST):
 
 def getFreqByCosineSimilarity(query, data):
     # Creating embedding for query
-    embedding = get_embedding(query, engine='text-search-ada-query-001')
+    embedding = get_embedding(query, engine='text-embedding-3-small')
 
     # Searching query embedding through avatar's questions' embeddings using cosine similarity
     data['similarities'] = data.ada_search.apply(lambda x: cosine_similarity(x, embedding))

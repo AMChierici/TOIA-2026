@@ -54,7 +54,7 @@ if __name__ == "__main__":
         # df_avatar['ada_similarity'] = df_avatar.combined.apply(lambda x: get_embedding(x, engine='text-similarity-ada-001'))
 
 
-        df_avatar['ada_search'] = df_avatar.combined.apply(lambda x: get_embedding(x, engine='text-search-ada-doc-001'))
+        df_avatar['ada_search'] = df_avatar.combined.apply(lambda x: get_embedding(x, engine='text-embedding-3-small'))
 
         df_avatar.to_csv("temp.csv")
 
