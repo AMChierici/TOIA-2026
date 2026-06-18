@@ -7,6 +7,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (user: AuthUser) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -41,6 +42,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearToken();
         localStorage.removeItem(STORAGE_KEY);
         setUser(null);
+      },
+      updateUser: (next) => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        setUser(next);
       },
     }),
     [user],

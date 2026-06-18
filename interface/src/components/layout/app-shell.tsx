@@ -1,19 +1,22 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
-import { Menu, X, Video } from "lucide-react";
+import { Menu, X, Video, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LanguageSelector } from "@/components/language-selector";
 import { useAuth } from "@/lib/auth";
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
   const [open, setOpen] = useState(false);
   const { isAuthenticated, user, logout } = useAuth();
+  const { t } = useI18n();
 
   const navItems = [
-    { to: "/", label: "Home", end: true },
-    { to: "/explore", label: "Explore" },
-    { to: "/about", label: "About" },
-    ...(isAuthenticated ? [{ to: "/mytoia", label: "My TOIA" }] : []),
+    { to: "/", label: t("nav.home"), end: true },
+    { to: "/explore", label: t("nav.explore") },
+    { to: "/about", label: t("nav.about") },
+    ...(isAuthenticated ? [{ to: "/mytoia", label: t("nav.mytoia") }] : []),
   ];
 
   return (
@@ -48,20 +51,34 @@ export function AppShell() {
           </nav>
 
           <div className="hidden items-center gap-2 md:flex">
+            <LanguageSelector />
             {isAuthenticated ? (
               <>
-                <span className="text-sm text-muted-foreground">Hi, {user?.first_name}</span>
+                <Link
+                  to="/settings"
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                  title={t("nav.settings")}
+                >
+                  {user?.avatarURL ? (
+                    <img src={user.avatarURL} alt="" className="size-7 rounded-full object-cover" />
+                  ) : (
+                    <span className="flex size-7 items-center justify-center rounded-full bg-muted">
+                      <User className="size-4" />
+                    </span>
+                  )}
+                  {t("nav.greeting", { name: user?.first_name ?? "" })}
+                </Link>
                 <Button variant="outline" size="sm" onClick={logout}>
-                  Log out
+                  {t("nav.logout")}
                 </Button>
               </>
             ) : (
               <>
                 <Button asChild variant="ghost" size="sm">
-                  <Link to="/login">Log in</Link>
+                  <Link to="/login">{t("nav.login")}</Link>
                 </Button>
                 <Button asChild size="sm">
-                  <Link to="/signup">Get started</Link>
+                  <Link to="/signup">{t("nav.getStarted")}</Link>
                 </Button>
               </>
             )}
@@ -98,17 +115,23 @@ export function AppShell() {
                 </NavLink>
               ))}
               <div className="mt-2 flex flex-col gap-2">
+                <LanguageSelector className="self-start" />
                 {isAuthenticated ? (
-                  <Button variant="outline" onClick={() => { setOpen(false); logout(); }}>
-                    Log out
-                  </Button>
+                  <>
+                    <Button asChild variant="ghost" className="justify-start">
+                      <Link to="/settings" onClick={() => setOpen(false)}>{t("nav.settings")}</Link>
+                    </Button>
+                    <Button variant="outline" onClick={() => { setOpen(false); logout(); }}>
+                      {t("nav.logout")}
+                    </Button>
+                  </>
                 ) : (
                   <>
                     <Button asChild variant="outline">
-                      <Link to="/login" onClick={() => setOpen(false)}>Log in</Link>
+                      <Link to="/login" onClick={() => setOpen(false)}>{t("nav.login")}</Link>
                     </Button>
                     <Button asChild>
-                      <Link to="/signup" onClick={() => setOpen(false)}>Get started</Link>
+                      <Link to="/signup" onClick={() => setOpen(false)}>{t("nav.getStarted")}</Link>
                     </Button>
                   </>
                 )}
@@ -125,7 +148,7 @@ export function AppShell() {
       <footer className="border-t py-8">
         <div className="container flex flex-col items-center justify-between gap-2 text-sm text-muted-foreground sm:flex-row">
           <span>© {new Date().getFullYear()} TOIA</span>
-          <span>Interactive video conversations</span>
+          <span>{t("footer.tagline")}</span>
         </div>
       </footer>
     </div>

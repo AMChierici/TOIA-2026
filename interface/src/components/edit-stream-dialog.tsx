@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
 import { api, type Stream } from "@/lib/api";
+import { LANGUAGES } from "@/lib/i18n-core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,12 +21,16 @@ export function EditStreamDialog({ stream }: { stream: Stream }) {
   const [visibility, setVisibility] = useState<"public" | "private">(
     stream.private ? "private" : "public",
   );
+  const [language, setLanguage] = useState(stream.language ?? "en-US");
+  const [bio, setBio] = useState(stream.bio ?? "");
 
   // Reset the form to the stream's current values whenever the dialog opens.
   function onOpenChange(next: boolean) {
     if (next) {
       setName(stream.name);
       setVisibility(stream.private ? "private" : "public");
+      setLanguage(stream.language ?? "en-US");
+      setBio(stream.bio ?? "");
     }
     setOpen(next);
   }
@@ -35,6 +40,8 @@ export function EditStreamDialog({ stream }: { stream: Stream }) {
       api.updateStream(stream.id_stream, {
         name: name.trim(),
         private: visibility === "private",
+        language,
+        bio: bio.trim(),
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["user-streams"] });
@@ -88,6 +95,35 @@ export function EditStreamDialog({ stream }: { stream: Stream }) {
               <option value="public">Public — anyone can talk to it</option>
               <option value="private">Private — only you can see it</option>
             </select>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="edit-stream-language" className="text-sm font-medium">Language</label>
+            <select
+              id="edit-stream-language"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.code} value={l.locale}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="edit-stream-bio" className="text-sm font-medium">
+              Bio <span className="text-muted-foreground">(optional)</span>
+            </label>
+            <textarea
+              id="edit-stream-bio"
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              rows={2}
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
           </div>
 
           {save.isError && (

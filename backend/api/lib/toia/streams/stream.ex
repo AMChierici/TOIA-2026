@@ -11,12 +11,14 @@ defmodule Toia.Streams.Stream do
     field :private, :boolean, default: false
     field :views, :integer, default: 0
     field :toia_id, :id
+    field :language, :string, default: "en-US"
+    field :bio, :string
   end
 
   @doc false
   def changeset(stream, attrs) do
     stream
-    |> cast(attrs, [:name, :private, :likes, :views, :toia_id])
+    |> cast(attrs, [:name, :private, :likes, :views, :toia_id, :language, :bio])
     |> validate_required([:name, :private, :likes, :views, :toia_id])
   end
 end

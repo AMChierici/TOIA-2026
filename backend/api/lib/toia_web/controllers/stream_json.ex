@@ -23,6 +23,8 @@ defmodule ToiaWeb.StreamJSON do
       likes: stream.likes,
       views: stream.views,
       toia_id: stream.toia_id,
+      language: Map.get(stream, :language),
+      bio: Map.get(stream, :bio),
       videos_count: stream.videos_count,
       pic: stream.pic
     }
@@ -35,7 +37,9 @@ defmodule ToiaWeb.StreamJSON do
       private: stream.private,
       likes: stream.likes,
       views: stream.views,
-      toia_id: stream.toia_id
+      toia_id: stream.toia_id,
+      language: stream.language,
+      bio: stream.bio
     }
   end
 end

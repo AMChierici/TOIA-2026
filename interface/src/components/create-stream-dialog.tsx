@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
+import { LANGUAGES } from "@/lib/i18n-core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,6 +19,8 @@ export function CreateStreamDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
+  const [language, setLanguage] = useState("en-US");
+  const [bio, setBio] = useState("");
   const [pic, setPic] = useState<File | null>(null);
 
   const create = useMutation({
@@ -25,6 +28,8 @@ export function CreateStreamDialog() {
       const form = new FormData();
       form.append("name", name.trim());
       form.append("private", String(isPrivate));
+      form.append("language", language);
+      form.append("bio", bio.trim());
       form.append("stream_pic", pic!);
       return api.createStream(form);
     },
@@ -34,6 +39,8 @@ export function CreateStreamDialog() {
       setOpen(false);
       setName("");
       setIsPrivate(false);
+      setLanguage("en-US");
+      setBio("");
       setPic(null);
     },
   });
@@ -71,6 +78,36 @@ export function CreateStreamDialog() {
               required
             />
             {nameError && <p className="text-sm text-destructive">{nameError}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="stream-language" className="text-sm font-medium">Language</label>
+            <select
+              id="stream-language"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.code} value={l.locale}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="stream-bio" className="text-sm font-medium">
+              Bio <span className="text-muted-foreground">(optional)</span>
+            </label>
+            <textarea
+              id="stream-bio"
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              rows={2}
+              placeholder="A short description people will see."
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
           </div>
 
           <div className="space-y-2">

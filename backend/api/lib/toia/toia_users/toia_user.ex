@@ -9,12 +9,13 @@ defmodule Toia.ToiaUsers.ToiaUser do
     field :last_name, :string
     field :password, :string
     field :verified, :boolean, default: false
+    field :avatar, :boolean, default: false
   end
 
   @doc false
   def changeset(toia_user, attrs) do
     toia_user
-    |> cast(attrs, [:first_name, :last_name, :language, :email, :password, :verified])
+    |> cast(attrs, [:first_name, :last_name, :language, :email, :password, :verified, :avatar])
     |> Ecto.Changeset.unique_constraint(:email, name: :toia_user_email_index)
     |> validate_required([:first_name, :last_name, :language, :email, :password])
   end

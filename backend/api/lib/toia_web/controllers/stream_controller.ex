@@ -90,7 +90,7 @@ defmodule ToiaWeb.StreamController do
     if stream.toia_id == user.id do
       # Only the owner may change a stream; restrict editable fields so callers
       # can't reassign ownership or tamper with like/view counts.
-      allowed = Map.take(stream_params, ["name", "private"])
+      allowed = Map.take(stream_params, ["name", "private", "language", "bio"])
 
       with {:ok, %Stream{} = stream} <- Streams.update_stream(stream, allowed) do
         stream = Map.put(stream, :pic, Streams.get_stream_pic(stream))

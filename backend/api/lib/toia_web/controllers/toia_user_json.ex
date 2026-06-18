@@ -25,7 +25,8 @@ defmodule ToiaWeb.ToiaUserJSON do
       first_name: toia_user.first_name,
       last_name: toia_user.last_name,
       language: toia_user.language,
-      email: toia_user.email
+      email: toia_user.email,
+      avatarURL: Toia.ToiaUsers.get_avatar_url(toia_user)
     }
   end
 

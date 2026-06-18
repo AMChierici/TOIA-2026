@@ -106,6 +106,23 @@ defmodule ToiaWeb.ToiaUserController do
     end
   end
 
+  # Authenticated "user settings" update for the current user: name/language and
+  # an optional (facultative) profile picture.
+  def update_profile(%{assigns: %{current_user: user}} = conn, params) do
+    fields = Map.take(params, ["first_name", "last_name", "language"])
+
+    with {:ok, %ToiaUser{} = updated} <- ToiaUsers.update_toia_user(user, fields),
+         {:ok, updated} <- maybe_save_avatar(updated, params) do
+      updated = Map.delete(updated, :password)
+      render(conn, :show, toia_user: updated)
+    end
+  end
+
+  defp maybe_save_avatar(user, %{"avatar" => %Plug.Upload{path: path}}),
+    do: ToiaUsers.save_avatar(user, path)
+
+  defp maybe_save_avatar(user, _params), do: {:ok, user}
+
   def delete(conn, %{"id" => id}) do
     toia_user = ToiaUsers.get_toia_user!(id)
 

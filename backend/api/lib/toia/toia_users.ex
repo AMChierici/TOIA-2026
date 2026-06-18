@@ -146,6 +146,28 @@ defmodule Toia.ToiaUsers do
   end
 
   @doc """
+  Public URL of the user's profile picture, or nil if they haven't set one.
+  Mirrors the stream-pic convention (served from /media under the account dir).
+  """
+  def get_avatar_url(%ToiaUser{avatar: true} = user) do
+    "#{System.get_env("API_URL")}/media/#{user.first_name}_#{user.id}/ProfilePic/avatar.jpg"
+  end
+
+  def get_avatar_url(_user), do: nil
+
+  @doc """
+  Stores an uploaded profile picture for the user and flips the avatar flag.
+  """
+  def save_avatar(%ToiaUser{} = user, filePath) do
+    destDir = "Accounts/#{user.first_name}_#{user.id}/ProfilePic/"
+
+    case Toia.Videos.copyAndDelete(filePath, destDir, "avatar.jpg") do
+      :ok -> update_toia_user(user, %{avatar: true})
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
   Deletes a toia_user.
 
   ## Examples

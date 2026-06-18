@@ -6,6 +6,9 @@ import videoTypes from "@/configs/VideoTypes.json";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useRecorder } from "@/lib/use-recorder";
+import { useStopwatch } from "@/lib/use-stopwatch";
+import { useLiveTranscription } from "@/lib/use-live-transcription";
+import { formatClock } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +23,8 @@ export function RecorderPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const recorder = useRecorder();
+  const isRecording = recorder.state === "recording";
+  const elapsed = useStopwatch(isRecording);
   const editId = searchParams.get("edit");
   const isEditing = Boolean(editId);
 
@@ -28,6 +33,12 @@ export function RecorderPage() {
   const [videoType, setVideoType] = useState("answer");
   const [streamId, setStreamId] = useState<string>("");
   const [prefilled, setPrefilled] = useState(false);
+
+  // Auto-transcribe speech into the transcript field while recording.
+  const live = useLiveTranscription(isRecording, user?.language ?? "en-US");
+  useEffect(() => {
+    if (isRecording && live.transcript) setAnswer(live.transcript);
+  }, [isRecording, live.transcript]);
 
   const streams = useQuery({
     queryKey: ["user-streams", user?.id],
@@ -99,7 +110,7 @@ export function RecorderPage() {
   return (
     <div className="container grid gap-6 py-8 lg:grid-cols-[1.4fr_1fr]">
       <div className="space-y-4">
-        <div className="overflow-hidden rounded-xl border bg-black">
+        <div className="relative overflow-hidden rounded-xl border bg-black">
           <div className="aspect-video">
             {previewUrl ? (
               <video className="size-full" src={previewUrl} controls playsInline />
@@ -107,6 +118,16 @@ export function RecorderPage() {
               <video ref={recorder.videoRef} className="size-full" playsInline muted />
             )}
           </div>
+          {isRecording && (
+            <div
+              className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1 text-sm font-medium text-white"
+              role="timer"
+              aria-label="Recording time"
+            >
+              <span className="size-2.5 animate-pulse rounded-full bg-red-500" />
+              {formatClock(elapsed)}
+            </div>
+          )}
         </div>
 
         {recorder.error && <p className="text-sm text-destructive">{recorder.error}</p>}
@@ -127,7 +148,7 @@ export function RecorderPage() {
           )}
           {recorder.state === "recorded" && (
             <span className="self-center text-sm text-muted-foreground">
-              {recorder.durationSeconds}s recorded
+              {formatClock(recorder.durationSeconds)} recorded
             </span>
           )}
         </div>
@@ -150,6 +171,9 @@ export function RecorderPage() {
             <div className="space-y-2">
               <label htmlFor="answer" className="text-sm font-medium">
                 Transcript <span className="text-muted-foreground">(used for matching)</span>
+                {isRecording && live.supported && (
+                  <span className="ml-2 text-xs font-normal text-primary">● transcribing…</span>
+                )}
               </label>
               <textarea
                 id="answer"

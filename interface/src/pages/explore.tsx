@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Users } from "lucide-react";
 import { api, type Stream } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function ExplorePage() {
+  const { t } = useI18n();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["streams"],
     queryFn: api.listStreams,
@@ -13,8 +15,8 @@ export function ExplorePage() {
   return (
     <div className="container py-10">
       <div className="mb-8 space-y-1">
-        <h1 className="text-3xl font-bold tracking-tight">Explore avatars</h1>
-        <p className="text-muted-foreground">Browse public streams and start a conversation.</p>
+        <h1 className="text-3xl font-bold tracking-tight">{t("explore.title")}</h1>
+        <p className="text-muted-foreground">{t("explore.subtitle")}</p>
       </div>
 
       {isLoading && (
@@ -61,7 +63,10 @@ export function ExplorePage() {
               </div>
               <CardContent className="p-4">
                 <h3 className="font-semibold">{stream.name}</h3>
-                <p className="text-sm text-muted-foreground">
+                {stream.bio && (
+                  <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{stream.bio}</p>
+                )}
+                <p className="mt-1 text-sm text-muted-foreground">
                   {stream.videos_count ?? 0} videos · {stream.views} views
                 </p>
               </CardContent>
