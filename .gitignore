@@ -1,20 +1,36 @@
+# OS
 *.DS_Store
-interface/node_modules/
-server/node_modules/
-/node_modules
-package-lock.json
-server/toia-capstone-2021-dc5b358c68c2.json
-server/toia-capstone-2021-a17d9d7dd482.json
-server/toia-dm/toia-capstone-2021-1b8f8a91c797.json
-server/toia-dm/.vscode/
-server/.env
-server/Accounts/
-server/package-lock.json
-server/q_api/notebooks/.ipynb_checkpoints
+
+# Secrets / env
 .env
-interface/.env
-server/toia-dm/.env
+*/.env
 */*.env
+.env.*.local
 secrets/
-server/translation/.env
-.vscode
+
+# Node (frontend + any node helpers)
+node_modules/
+/node_modules
+interface/node_modules/
+package-lock.json
+npm-debug.log*
+
+# Elixir / Phoenix (backend/api)
+backend/api/_build/
+backend/api/deps/
+backend/api/*.ez
+backend/api/erl_crash.dump
+backend/api/.elixir_ls/
+
+# Python services
+__pycache__/
+*.py[cod]
+.venv/
+*/notebooks/.ipynb_checkpoints
+
+# User-generated media (stored on a volume, not in git)
+backend/api/Accounts/
+
+# Editor
+.vscode/
+.idea/
