@@ -12,6 +12,7 @@ secrets/
 node_modules/
 /node_modules
 interface/node_modules/
+interface/dist/
 npm-debug.log*
 
 # Elixir / Phoenix (backend/api)

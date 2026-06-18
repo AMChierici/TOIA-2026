@@ -13,6 +13,10 @@ defmodule ServiceHandlers.DialogueManager do
     [{"Content-Type", "application/json"}]
   end
 
+  def process_request_options(_options) do
+    [timeout: 30_000, recv_timeout: 30_000]
+  end
+
   def process_request_body(body) do
     query = body["query"]
     stream_id = body["stream_id"]

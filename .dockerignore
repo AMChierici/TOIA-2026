@@ -29,4 +29,5 @@ backend/toia-dm/__pycache__/
 
 # Frontend
 interface/build
+interface/dist
 interface/node_modules
