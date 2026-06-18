@@ -7,7 +7,7 @@ import { LoginPage } from "@/pages/login";
 import { SignupPage } from "@/pages/signup";
 import { DashboardPage } from "@/pages/dashboard";
 import { PlayerPage } from "@/pages/player";
-import { ComingSoonPage } from "@/pages/coming-soon";
+import { RecorderPage } from "@/pages/recorder";
 import { NotFoundPage } from "@/pages/not-found";
 
 export default function App() {
@@ -30,7 +30,7 @@ export default function App() {
           path="record"
           element={
             <ProtectedRoute>
-              <ComingSoonPage title="Recorder" />
+              <RecorderPage />
             </ProtectedRoute>
           }
         />

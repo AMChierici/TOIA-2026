@@ -94,5 +94,9 @@ export const api = {
   // Returns a filler video URL as plain text.
   getFiller: (streamId: number | string) =>
     http.get(`/stream/${streamId}/filler`, { responseType: "text" }).then((r) => r.data as string),
+
+  // Upload a recorded video. `form` must include the blob under "video".
+  createVideo: (form: FormData) =>
+    http.post<{ videoID: string }>("/video", form).then((r) => r.data),
 };
 
