@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Mic, Send, ThumbsDown, ThumbsUp } from "lucide-react";
 import { api, type NextVideo } from "@/lib/api";
 import { useSpeechToText } from "@/lib/use-speech";
+import { VoiceIndicator } from "@/components/voice-indicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -66,6 +67,12 @@ export function PlayerPage() {
                 controls
                 autoPlay
                 playsInline
+                crossOrigin="anonymous"
+                onLoadedMetadata={(e) => {
+                  // Force captions on; some browsers ignore the `default` attr.
+                  const tracks = e.currentTarget.textTracks;
+                  if (tracks.length > 0) tracks[0].mode = "showing";
+                }}
               >
                 <source src={current.url} />
                 {current.vtt_url && (
@@ -102,6 +109,12 @@ export function PlayerPage() {
             <Send /> {ask.isPending ? "Thinking…" : "Ask"}
           </Button>
         </form>
+        {(speech.listening || ask.isPending) && (
+          <VoiceIndicator
+            active
+            label={speech.listening ? "Listening…" : "Finding the best answer…"}
+          />
+        )}
         {ask.isError && (
           <p className="text-sm text-destructive">Something went wrong. Please try again.</p>
         )}
