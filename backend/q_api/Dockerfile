@@ -1,20 +1,12 @@
-FROM ubuntu:20.04
+FROM python:3.12-slim
 
-ENV FLASK_RUN_HOST 0.0.0.0
-RUN apt-get update
-RUN apt-get install -y build-essential
-RUN apt-get install python3-pip -y
-RUN apt install libncurses5 -y
-
-COPY requirements.txt /app/requirements.txt
-
+ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
-RUN pip3 install -r requirements.txt
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . /app
+COPY . .
 
 EXPOSE 5000
-
-ENTRYPOINT ["python3", "-m"]
-CMD ["flask", "run"]
+CMD ["gunicorn", "-b", "0.0.0.0:5000", "-w", "2", "-t", "120", "app:app"]

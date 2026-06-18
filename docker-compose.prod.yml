@@ -43,8 +43,6 @@ services:
 
   q_api:
     build: ./backend/q_api
-    # See docker-compose.yml: amd64 wheels for the old pinned deps.
-    platform: linux/amd64
     restart: always
     depends_on:
       mysql:

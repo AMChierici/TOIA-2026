@@ -59,10 +59,6 @@ services:
 
   q_api:
     build: ./backend/q_api
-    # Pinned to amd64: the old pinned Python deps have no arm64 wheels, so on
-    # Apple Silicon they would compile from source and fail. amd64 uses prebuilt
-    # wheels (via emulation locally); a no-op on amd64 hosts.
-    platform: linux/amd64
     restart: on-failure
     depends_on:
       mysql:

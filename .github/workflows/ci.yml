@@ -83,7 +83,7 @@ jobs:
         run: |
           python -m py_compile \
             backend/q_api/app.py \
-            backend/q_api/utils.py \
+            backend/q_api/llm.py \
             backend/q_api/create_embeddings.py \
             backend/toia-dm/main.py \
             backend/toia-dm/dialogue.py \

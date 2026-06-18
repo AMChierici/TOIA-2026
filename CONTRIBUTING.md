@@ -58,9 +58,8 @@ pip install -r requirements.txt
 python -m py_compile *.py   # quick syntax check
 ```
 
-`toia-dm` is lightweight (FastAPI + OpenAI embeddings, no local ML models).
-`q_api` still pulls a heavier legacy stack and is pinned to `linux/amd64` for
-prebuilt wheels; give Docker a few GB if it gets OOM-killed while building.
+Both Python services are lightweight (Flask/FastAPI + OpenAI; no local ML
+models), build from `python:3.12-slim`, and run natively on arm64.
 
 ## Branches & commits
 

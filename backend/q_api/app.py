@@ -1,449 +1,140 @@
-import requests
-from flask import Flask, request, render_template, url_for
-import argparse
-import random
-import os
-import re
+"""q_api — question suggestion service.
+
+Two endpoints, both called by the Phoenix API:
+- POST /generateNextQ  : generate follow-up questions and POST each to a
+  callback URL (used after a video is recorded).
+- POST /generateSmartQ : shortlist an avatar's existing questions by embedding
+  similarity, then have the LLM pick the best, returned inline.
+"""
 import json
-import linecache
-# from transformers import pipeline, set_seed
-# from transformers import BertTokenizer, BertForNextSentencePrediction
-import nltk
-from nltk import tokenize
-import ssl
-# import torch
-import sqlalchemy as db
-from sqlalchemy.sql import text as QueryText
-from dotenv import load_dotenv
-import openai
 import logging
-from utils import getFirstNSimilar
-import pandas as pd
-import time
+import os
+
+import requests
+from dotenv import load_dotenv
+from flask import Flask, request
+from sqlalchemy import create_engine, text
+
+import llm
+
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
 
-required_env_vars = [
-    "ENVIRONMENT",
-    "API_URL",
-    "DB_CONNECTION",
-    "DB_USERNAME",
-    "DB_PASSWORD",
-    "DB_HOST",
-    "DB_DATABASE",
-    "OPENAI_API_KEY"
-]
+REQUIRED_ENV = ["DB_USERNAME", "DB_PASSWORD", "DB_HOST", "DB_DATABASE", "OPENAI_API_KEY"]
+_missing = [v for v in REQUIRED_ENV if not os.environ.get(v)]
+if _missing:
+    raise RuntimeError(f"Missing environment variables: {', '.join(_missing)}")
 
-for env_var in required_env_vars:
-    if not os.environ.get(env_var):
-        raise Exception(f"Missing environment variable {env_var}")
+DB_URL = (
+    f"mysql+pymysql://{os.environ['DB_USERNAME']}:{os.environ['DB_PASSWORD']}"
+    f"@{os.environ['DB_HOST']}/{os.environ['DB_DATABASE']}"
+)
+engine = create_engine(DB_URL, pool_pre_ping=True)
 
-# tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-# model = BertForNextSentencePrediction.from_pretrained('bert-base-uncased', return_dict=True)
-NUM_SHORTLIST = 50 #Shortlisting avatar questions for GPT-3
+NUM_SHORTLIST = 50
 
-#Local storage of the conversation data - will be deprecated once the database is in place
-SQL_URL = "{dbconnection}+pymysql://{dbusername}:{dbpassword}@{dbhost}/{dbname}".format(dbconnection=os.environ.get("DB_CONNECTION"), dbusername=os.environ.get("DB_USERNAME"), dbpassword=os.environ.get("DB_PASSWORD"), dbhost=os.environ.get("DB_HOST"), dbname=os.environ.get("DB_DATABASE"))
-
-ENGINE = db.create_engine(SQL_URL)
-
-print("Connected successfully!")
-
-try:
-    _create_unverified_https_context = ssl._create_unverified_context
-except AttributeError:
-    pass
-else:
-    ssl._create_default_https_context = _create_unverified_https_context
-
-nltk.download('punkt')
-
-# To run this, type in terminal: `export FLASK_APP=main-app.py` (or whatever name of file is)
-# Then type flask run
-# Additional options: Use `flask run --host=0.0.0.0` or any other host you want to specify.
-# additionally you can add `--port=4000` after the previous command to run on port 4000
 app = Flask(__name__)
 
-# generator = pipeline('text-generation', model='gpt2')
+# Last two trigger-suggester Q/A pairs for an avatar (most recent first).
+LAST_QA_SQL = text(
+    """
+    SELECT questions.question, video.answer AS latest_answer
+    FROM video
+    JOIN videos_questions_streams ON videos_questions_streams.id_video = video.id_video
+    JOIN questions ON questions.id = videos_questions_streams.id_question
+    WHERE video.toia_id = :avatar_id AND questions.trigger_suggester = 1
+    ORDER BY video.idx DESC LIMIT 2
+    """
+)
 
-openai.api_key = os.environ.get("OPENAI_API_KEY")
+# An avatar's answerable questions in a stream, with their stored embeddings.
+STREAM_QA_SQL = text(
+    """
+    SELECT videos_questions_streams.ada_search, questions.question
+    FROM video
+    JOIN videos_questions_streams ON videos_questions_streams.id_video = video.id_video
+    JOIN questions ON questions.id = videos_questions_streams.id_question
+    WHERE videos_questions_streams.id_stream = :stream_id AND video.private = 0
+      AND questions.id NOT IN (19, 20)
+      AND questions.suggested_type IN ('answer', 'y/n-answer')
+    """
+)
 
-Service_Active = True
-API = "GPT-3"
 
-def getYNQuestions(entry):
-    return entry.question
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
-def generate_prompt(new_q, new_a, avatar_id, api):
-    
-    statement = QueryText("""
-                            SELECT questions.question, video.answer AS latest_question_answer 
-                            FROM video
-                            INNER JOIN videos_questions_streams
-                            ON videos_questions_streams.id_video = video.id_video
-                            INNER JOIN questions
-                            ON questions.id = videos_questions_streams.id_question
-                            WHERE toia_id = :avatar_id 
-                            AND questions.trigger_suggester = 1
-                            ORDER BY video.idx DESC LIMIT 2;
-                """)
 
-    CONNECTION = ENGINE.connect()  #Need to refresh connection
-    result_proxy = CONNECTION.execute(statement, avatar_id=avatar_id)
-    result_set = result_proxy.fetchall()
-    
-    # if api == "GPT-2":      
-    #     prompt = new_q + " " + new_a
-    #     if len(result_set) > 1:
-    #         prompt = """{} {} {}""".format(
-    #             result_set[1][0],
-    #             result_set[1][1],
-    #             prompt)
-        
-    # elif api == "GPT-3":
-    prompt = """
-Suggest five plausible questions for following up the conversation.
-{}
-Q: {}
-A: {}
-Possible questions:"""
-    if len(result_set) <= 1:
-        prompt = prompt.format("", new_q, new_a)
-    else:
-        prompt = prompt.format("""
-Q: {}
-A: {}""".format(result_set[1][0], result_set[1][1]),
-            new_q, new_a)
+def _prior_context(avatar_id):
+    with engine.connect() as conn:
+        rows = conn.execute(LAST_QA_SQL, {"avatar_id": avatar_id}).mappings().all()
+    if len(rows) > 1:
+        prev = rows[1]
+        return f"\nQ: {prev['question']}\nA: {prev['latest_answer']}"
+    return ""
 
-    return prompt
 
-def generate_prompt_for_smart_questions(new_q, new_a, avatar_id, api, suggestions_shortlist, num_questions=5):
-    
-    
-    prompt=""
-    if api == "GPT-3":
-        prompt = """\
-Understand the following conversation:
-Q: {}
-A: {}""".format(new_q, new_a)
-        
-        prompt = prompt + "\n\nSelect the {} best follow-up questions from the following:".format(num_questions)
-        for question in suggestions_shortlist:
-            prompt = prompt + "\n" + question.strip().replace('\n','')
-        prompt = prompt +"\n\n"
+@app.post("/generateNextQ")
+def generate_next_q():
+    body = request.get_json(force=True)
+    new_q = body.get("new_q", "")
+    new_a = body.get("new_a", "")
+    n = body.get("n_suggestions") or 5
+    avatar_id = body.get("avatar_id")
+    callback_url = body.get("callback_url")
 
-    # print("=====Prompt=====\n",prompt)
-    return prompt
-
-    
-@app.route('/getTrial')
-def hello():
-    return "Successful getTrial"
-
-@app.route('/postTrial', methods = ['POST'])
-def test():
-    data = request.data
-    return ("Success you sent me: ", data)
-
-@app.route('/activate')
-def activate_service():
-    global Service_Active
-    Service_Active = True
-    return "Activated!"
-
-@app.route('/deactivate')
-def deactivate_service():
-    global Service_Active
-    Service_Active = False
-    return "Deactivated!"
-
-@app.route('/status')
-def service_status():
-    if Service_Active:
-        return "Service is active"
-    else:
-        return "Service is not active"
-
-# @app.route('/useGPT2')
-# def activate_gpt2():
-#     global API
-#     API = "GPT-2"
-#     return "Using GPT-2 API."
-
-@app.route('/useGPT3')
-def activate_gpt3():
-    global API
-    API = "GPT-3"
-    return "Using GPT-3 API."
-
-@app.route('/generationAPI')
-def api_status():
-    return "Generator is using {} API.".format(API)
-
-@app.route('/generateNextQ',  methods = ['POST'])
-def generateNextQ(api=API):
-    if not Service_Active:
-        return {"error":"Inactive"}
-
-    body_unicode = request.data.decode('utf-8')
-    body = json.loads(body_unicode)
-
-    print("Received body", body)
-    #### Delete after integration with backend ##############
-    # text=body['qa_pair']
-    # new_q, new_a = nltk.tokenize.sent_tokenize(text)
-    # n_suggestions = 5
-    # avatar_id = 1
-    #########################################################
-
-    #### Uncomment after integration with backend ####
-    new_q = body['new_q']
-    new_a = body['new_a']
-    n_suggestions = body['n_suggestions']
-    avatar_id = body['avatar_id']
-    ##################################################
-    callback_url = None
-    if 'callback_url' in body:
-        callback_url = body['callback_url']
-
-    prompt = generate_prompt(
-        new_q=new_q, 
-        new_a=new_a, 
-        avatar_id=avatar_id,
-        api=API)
-    
-    # if api == "GPT-2":
-    #     q = generator(prompt, 
-    #               num_return_sequences=n_suggestions, 
-    #               max_length=50 + len(prompt))
-
-    #     #all generated examples 
-    #     allGenerations = ""
-    #     for i in range(n_suggestions):
-    #         allGenerations = allGenerations + " " + q[i]['generated_text'][len(prompt) - 4:]
-
-    #     #Separating all the sentences... 
-    #     sentenceList = nltk.tokenize.sent_tokenize(allGenerations)
-
-    #     #Filter out questions 
-    #     questionsList = []
-    #     for sentence in sentenceList :
-    #         if "?" in sentence:
-    #             questionsList.append(sentence.strip("\n").strip("\\").strip('"'))
-
-    #     #Bert evaluation
-    #     bert_filtered_qs = []
-    #     for sentence in questionsList:
-    #         encoding = tokenizer(" ".join([new_q, new_a]), sentence, return_tensors='pt')  #[new_q, new_a] was initially [A, Q, A] using storage[-3:]
-    #         outputs = model(**encoding)
-    #         logits = outputs.logits
-    #         bert_filtered_qs.append((logits[0,0].item(), sentence))
-
-    #     bert_filtered_qs.sort(key=lambda tup: tup[0], reverse=True)
-    #     # Update number of suggestions in case there are less than n_suggestion questions identified
-    #     n_suggestions = min(len(bert_filtered_qs) - 1, n_suggestions)
-    #     suggestions = [bert_filtered_qs[i][1] for i in range(n_suggestions) if bert_filtered_qs[i][1] != bert_filtered_qs[i + 1][1]]     
-        
-    # elif api == "GPT-3":      
-    response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
-        max_tokens=250
+    context = _prior_context(avatar_id) if avatar_id else ""
+    prompt = (
+        "Suggest five plausible follow-up questions for the following "
+        f"conversation.{context}\nQ: {new_q}\nA: {new_a}"
     )
+    suggestions = llm.suggest_questions(prompt, n)
 
-    generation = response.choices[0]['message']['content']
-    # split sentences into list
-    suggestions = nltk.tokenize.sent_tokenize(generation)
-
-    # Filter suggestions
-    suggestions = list(map(lambda suggestion: suggestion.strip(), suggestions))
-    # Remove suggestions starting with "A:"
-    suggestions = list(filter(lambda suggestion: suggestion[:2] != "A:", suggestions))
-
-    # numbered lists, or - lists.
-    reg = re.compile(r"^([0-9]*\.|[0-9]*\)|[a-z]*[\.)]|-|Q:|Possible questions: Q:)", re.MULTILINE)
-
-    suggestions = list(map(lambda suggestion: re.sub(reg, "", suggestion), suggestions))
-
-    suggestions = [suggestion.strip() for suggestion in suggestions]
-
-    if (n_suggestions and n_suggestions > 0 and len(suggestions) > n_suggestions):
-        suggestions = random.sample(suggestions, n_suggestions)
-
-    print(prompt)
-    if len(suggestions):
-        print(suggestions)
-    else:
-        logging.warning("No suggestions!")
-
-    if callback_url is not None:
-        for suggestion in suggestions:
+    if callback_url:
+        for s in suggestions:
             try:
-                requests.post(callback_url, json={"q": suggestion})
-            except:
-                logging.error("Error when sending suggestions to server. Is the server running?")
-    else:
-        logging.warning("No callback_url provided!")
+                requests.post(callback_url, json={"q": s}, timeout=30)
+            except requests.RequestException:
+                logging.error("Failed to deliver suggestion to %s", callback_url)
 
     return {"suggestions": json.dumps(suggestions)}
 
-# Generating Smart Questions
-@app.route('/generateSmartQ', methods=['POST'])
-def generateSmartQ(api=API):
-    start_time = time.time() #timing for logs
-    if not Service_Active:
-        return {"error":"Inactive"}
 
-    body_unicode = request.data.decode('utf-8')
-    body = json.loads(body_unicode)
+@app.post("/generateSmartQ")
+def generate_smart_q():
+    body = request.get_json(force=True)
+    new_q = body.get("new_q", "")
+    new_a = body.get("new_a", "")
+    n = body.get("n_suggestions") or 5
+    stream_id = body.get("stream_id")
 
+    with engine.connect() as conn:
+        rows = conn.execute(STREAM_QA_SQL, {"stream_id": stream_id}).mappings().all()
 
-    new_q = body['new_q']
-    new_a = body['new_a']
-    n_suggestions = body['n_suggestions']
-    avatar_id = body['avatar_id']
+    # Shortlist the avatar's questions most similar to the incoming question.
+    query_vec = llm.embed(new_q or "Hello")
+    scored = []
+    for r in rows:
+        try:
+            vec = json.loads(r["ada_search"]) if r["ada_search"] else None
+        except (ValueError, TypeError):
+            vec = None
+        scored.append((llm.cosine(query_vec, vec), r["question"]))
+    scored.sort(key=lambda t: t[0], reverse=True)
+    shortlist = [q for _, q in scored[:NUM_SHORTLIST]]
 
-    stream_id = body['stream_id']
-    print("params", new_q, "and", new_a)
-
-
-    # Get all questions answered by avatar
-    statement = QueryText("""SELECT videos_questions_streams.id_stream as stream_id_stream, videos_questions_streams.ada_search, videos_questions_streams.type, questions.question, video.id_video, video.toia_id, video.idx, video.private, video.answer, video.likes, video.views FROM video
-                            INNER JOIN videos_questions_streams ON videos_questions_streams.id_video = video.id_video
-                            INNER JOIN questions ON questions.id = videos_questions_streams.id_question
-                            WHERE videos_questions_streams.id_stream = :streamID AND video.private = 0
-                            AND questions.id NOT IN (19, 20)
-                            AND questions.suggested_type IN ("answer", "y/n-answer");""")
-
-    CONNECTION = ENGINE.connect()
-    result_proxy = CONNECTION.execute(statement,streamID=stream_id)
-    result_set = result_proxy.fetchall()
-    # Take out all questions in the y_n_answers array
-
-    df_avatar = pd.DataFrame(result_set,
-                                columns=[
-                                    'stream_id_stream',
-                                    'ada_search',
-                                    'type',
-                                    'question',
-                                    'id_video',
-                                    'toia_id',
-                                    'idx',
-                                    'private',
-                                    'answer',
-                                    # 'language',
-                                    'likes',
-                                    'views',
-                                ])
-
-    # Get shortlisting through ada_similarity
-    suggestions_shortlist = getFirstNSimilar(df_avatar, new_q, NUM_SHORTLIST)
-
-    # Alternative: To use all questions without shortlisting, uncomment the following line:
-    # suggestions_shortlist = df_avatar["question"].values
-
-    callback_url = None
-    if 'callback_url' in body:
-        callback_url = body['callback_url']
-
-    prompt = generate_prompt_for_smart_questions(
-        new_q=new_q, 
-        new_a=new_a, 
-        avatar_id=avatar_id,
-        api=API,
-        suggestions_shortlist=suggestions_shortlist,
-        num_questions=5)
-    
-    # if api == "GPT-2":
-    #     q = generator(prompt, 
-    #               num_return_sequences=n_suggestions, 
-    #               max_length=50 + len(prompt))
-
-    #     #all generated examples 
-    #     allGenerations = ""
-    #     for i in range(n_suggestions):
-    #         allGenerations = allGenerations + " " + q[i]['generated_text'][len(prompt) - 4:]
-
-    #     #Separating all the sentences... 
-    #     sentenceList = nltk.tokenize.sent_tokenize(allGenerations)
-
-    #     #Filter out questions 
-    #     questionsList = []
-    #     for sentence in sentenceList :
-    #         if "?" in sentence:
-    #             questionsList.append(sentence.strip("\n").strip("\\").strip('"'))
-
-    #     #Bert evaluation
-    #     bert_filtered_qs = []
-    #     for sentence in questionsList:
-    #         encoding = tokenizer(" ".join([new_q, new_a]), sentence, return_tensors='pt')  #[new_q, new_a] was initially [A, Q, A] using storage[-3:]
-    #         outputs = model(**encoding)
-    #         logits = outputs.logits
-    #         bert_filtered_qs.append((logits[0,0].item(), sentence))
-
-    #     bert_filtered_qs.sort(key=lambda tup: tup[0], reverse=True)
-    #     # Update number of suggestions in case there are less than n_suggestion questions identified
-    #     n_suggestions = min(len(bert_filtered_qs) - 1, n_suggestions)
-    #     suggestions = [bert_filtered_qs[i][1] for i in range(n_suggestions) if bert_filtered_qs[i][1] != bert_filtered_qs[i + 1][1]]     
-        
-    # elif api == "GPT-3":      
-    # print("Checkpoint 3: Sending request to AI...")
-    response = openai.ChatCompletion.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0,
-        max_tokens=250,
+    prompt = (
+        f"Understand this conversation:\nQ: {new_q}\nA: {new_a}\n\n"
+        f"Select the {n} best follow-up questions from the following list:\n"
+        + "\n".join(shortlist)
     )
-
-    generation = response.choices[0]['message']['content']
-
-    # split sentences into list
-    suggestions = nltk.tokenize.sent_tokenize(generation)
-
-
-    # Filter suggestions
-    suggestions = list(map(lambda suggestion: suggestion.strip(), suggestions))
-    # Remove suggestions starting with "A:"
-    suggestions = list(filter(lambda suggestion: suggestion[:2] != "A:", suggestions))
-
-    # numbered lists, or - lists.
-    reg = re.compile(r"^([0-9]*\.|[0-9]*\)|[a-z]*[\.)]|-|Q:|Possible questions: Q:)", re.MULTILINE)
-
-    suggestions = list(map(lambda suggestion: re.sub(reg, "", suggestion), suggestions))
-
-    suggestions = [suggestion.strip() for suggestion in suggestions]
-
-    if (n_suggestions and n_suggestions > 0 and len(suggestions) > n_suggestions):
-        suggestions = random.sample(suggestions, n_suggestions)
-
-
-    # print(prompt)
-    if len(suggestions):
-        print(suggestions)
-    else:
-        logging.warning("No suggestions!")
-
-    if callback_url is not None:
-        for suggestion in suggestions:
-            try:
-                requests.post(callback_url, json={"q": suggestion})
-            except:
-                logging.error("Error when sending suggestions to server. Is the server running?")
-    else:
-        logging.warning("No callback_url provided!")
-
-
-    # If GPT-3 did not return any values, use the last 7 questions from the shortlist
-    if suggestions == []:
-        print("q-api/generateSmartQ: GPT-3 returned empty array. Using arbitrarily chosen questions from avatar as suggestions")
-        if len(suggestions_shortlist) <= 7:
-            suggestions = suggestions_shortlist.tolist()
-        else:
-            suggestions = suggestions_shortlist[:7].tolist()
-    
-    end_time = time.time()
-    print("q-api/generateSmartQ: Total time taken to get smart suggestions: %s " % (end_time-start_time), flush=True)
+    suggestions = llm.suggest_questions(prompt, n)
+    if not suggestions:
+        suggestions = shortlist[:7]
 
     return {"suggestions": json.dumps(suggestions)}
 
-    # return {"suggestions": json.dumps(suggestions)}
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")))
