@@ -84,11 +84,23 @@ defmodule ToiaWeb.StreamController do
     end
   end
 
-  def update(conn, %{"id" => id, "stream" => stream_params}) do
+  def update(%{assigns: %{current_user: user}} = conn, %{"id" => id, "stream" => stream_params}) do
     stream = Streams.get_stream!(id)
 
-    with {:ok, %Stream{} = stream} <- Streams.update_stream(stream, stream_params) do
-      render(conn, :show, stream: stream)
+    if stream.toia_id == user.id do
+      # Only the owner may change a stream; restrict editable fields so callers
+      # can't reassign ownership or tamper with like/view counts.
+      allowed = Map.take(stream_params, ["name", "private"])
+
+      with {:ok, %Stream{} = stream} <- Streams.update_stream(stream, allowed) do
+        stream = Map.put(stream, :pic, Streams.get_stream_pic(stream))
+        stream = Map.put(stream, :videos_count, Streams.get_videos_count(stream.id_stream))
+        render(conn, :show, stream: stream)
+      end
+    else
+      conn
+      |> put_status(:unauthorized)
+      |> json(%{error: "Unauthorized"})
     end
   end
 

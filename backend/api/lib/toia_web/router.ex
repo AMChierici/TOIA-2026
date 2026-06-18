@@ -40,7 +40,7 @@ defmodule ToiaWeb.Router do
     # legacy: /api/getSmartQuestions
     post("/stream/:id/smart_questions", StreamController, :smart_questions)
     # legacy: /api/getAllStreams, /api/getStreamVideosCount
-    resources("/stream", StreamController, only: [:index, :create, :show])
+    resources("/stream", StreamController, only: [:index, :create, :show, :update])
 
     # Question Suggestion routes
     # legacy: /api/getLastestQuestionSuggestion

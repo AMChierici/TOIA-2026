@@ -1,4 +1,4 @@
-import toiaLogo from "@/images/TOIA_Logo.png";
+import toiaLogoVideo from "@/video/TOIA-LOGO-VID.mov";
 import nyuad from "@/images/nyuad-rb.png";
 import camel from "@/images/camel.png";
 import alberto from "@/images/alberto.jpeg";
@@ -54,7 +54,18 @@ export function AboutPage() {
   return (
     <div className="container max-w-4xl space-y-16 py-12">
       <section className="space-y-6 text-center">
-        <img src={toiaLogo} alt="TOIA" className="mx-auto h-20 w-auto" />
+        {/* The original animated TOIA logo from the old home page, kept small. */}
+        <video
+          src={toiaLogoVideo}
+          className="mx-auto h-28 w-auto rounded-lg"
+          autoPlay
+          muted
+          loop
+          playsInline
+          onCanPlay={(e) => {
+            e.currentTarget.playbackRate = 1.5;
+          }}
+        />
         <h1 className="text-3xl font-bold tracking-tight">TOIA — Communication Reimagined</h1>
         <div className="space-y-4 text-left text-muted-foreground">
           <p>

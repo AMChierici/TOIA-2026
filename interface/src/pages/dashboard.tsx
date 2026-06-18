@@ -1,12 +1,22 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Clapperboard, Clock, Layers, Plus, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CreateStreamDialog } from "@/components/create-stream-dialog";
+import { EditStreamDialog } from "@/components/edit-stream-dialog";
+import { VideoLibrary } from "@/components/video-library";
+
+const TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "videos", label: "Videos" },
+] as const;
+type TabId = (typeof TABS)[number]["id"];
 
 function formatDuration(seconds: number) {
   if (!seconds) return "0m";
@@ -18,6 +28,7 @@ function formatDuration(seconds: number) {
 
 export function DashboardPage() {
   const { user } = useAuth();
+  const [tab, setTab] = useState<TabId>("overview");
 
   const stats = useQuery({ queryKey: ["stats"], queryFn: api.getStats });
   const streams = useQuery({
@@ -54,6 +65,28 @@ export function DashboardPage() {
         </div>
       </div>
 
+      <div className="flex gap-1 border-b">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={cn(
+              "-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+              tab === t.id
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "videos" ? (
+        <VideoLibrary />
+      ) : (
+      <>
       <div className="grid gap-4 sm:grid-cols-3">
         {statCards.map((s) => (
           <Card key={s.label}>
@@ -98,9 +131,12 @@ export function DashboardPage() {
                 </CardHeader>
                 <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
                   <span>{stream.videos_count ?? 0} videos</span>
-                  <Button asChild variant="ghost" size="sm">
-                    <Link to={`/stream/${stream.id_stream}`}>Open</Link>
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <EditStreamDialog stream={stream} />
+                    <Button asChild variant="ghost" size="sm">
+                      <Link to={`/stream/${stream.id_stream}`}>Open</Link>
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -141,6 +177,8 @@ export function DashboardPage() {
           </Card>
         )}
       </section>
+      </>
+      )}
     </div>
   );
 }
