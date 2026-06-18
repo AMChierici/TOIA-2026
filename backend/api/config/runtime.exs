@@ -20,17 +20,21 @@ if System.get_env("PHX_SERVER") do
   config :toia, ToiaWeb.Endpoint, server: true
 end
 
-required_env_variables = ~W(API_URL YOUR_ORG_ID OPENAI_API_KEY GUARDIAN_SECRET_KEY DB_CONNECTION DB_USERNAME DB_PASSWORD DB_HOST DB_DATABASE GMAIL_SMTP_EMAIL GMAIL_SMTP_APP_PASSWORD Q_API_ROUTE SMART_SUGGESTER_ROUTE DM_ROUTE RMQ_USERNAME RMQ_PASSWORD RMQ_HOST)
-
-for var <- required_env_variables do
-  if System.get_env(var) == nil do
-    raise """
-    environment variable #{var} is missing.
-    """
-  end
-end
-
 if config_env() == :prod do
+  # These are required only for a production release. In dev/test the
+  # docker-compose defaults (and config/dev.exs) are enough, so we don't
+  # force contributors to populate the full secret set just to run locally.
+  required_env_variables =
+    ~W(API_URL OPENAI_API_KEY GUARDIAN_SECRET_KEY SECRET_KEY_BASE DATABASE_URL DB_CONNECTION DB_USERNAME DB_PASSWORD DB_HOST DB_DATABASE Q_API_ROUTE DM_ROUTE)
+
+  for var <- required_env_variables do
+    if System.get_env(var) == nil do
+      raise """
+      environment variable #{var} is missing.
+      """
+    end
+  end
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """

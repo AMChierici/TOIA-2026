@@ -18,6 +18,7 @@ defmodule ToiaWeb.ToiaUserController do
   def create(conn, toia_user_params) do
     with {:ok, %ToiaUser{} = toia_user, _stream} <-
            ToiaUsers.create_toia_user_with_stream(toia_user_params),
+         {:ok, toia_user} <- maybe_verify(toia_user),
          {:ok, token, _claims} <-
            Toia.Guardian.encode_and_sign(toia_user, %{
              id: toia_user.id,
@@ -26,9 +27,6 @@ defmodule ToiaWeb.ToiaUserController do
              langauge: toia_user.language,
              email: toia_user.email
            }) do
-      
-      _task = Task.async(fn -> Emails.confirmEmail(toia_user) end)
-
       conn
       |> put_status(:created)
       |> render(:show, toia_user: toia_user, token: token)
@@ -67,6 +65,18 @@ defmodule ToiaWeb.ToiaUserController do
         conn
         |> put_status(:internal_server_error)
         |> json(%{error: "Internal server error"})
+    end
+  end
+
+  # When email verification is required, send the verification email and leave
+  # the account unverified until the link is clicked. Otherwise auto-confirm the
+  # account so it can log in immediately (no email provider needed).
+  defp maybe_verify(toia_user) do
+    if Emails.verification_required?() do
+      _task = Task.async(fn -> Emails.confirmEmail(toia_user) end)
+      {:ok, toia_user}
+    else
+      ToiaUsers.update_toia_user(toia_user, %{verified: true})
     end
   end
 

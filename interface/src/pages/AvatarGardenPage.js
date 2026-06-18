@@ -20,7 +20,7 @@ import "./AvatarGardenPage.css";
 
 import NavBar from "./NavBar.js";
 
-import { useBottomScrollListener } from "react-bottom-scroll-listener";
+import { useBottomScrollListener } from "../hooks/useBottomScrollListener";
 
 import { useTranslation } from "react-i18next";
 import { getUser, isLoggedIn } from "../auth/auth";

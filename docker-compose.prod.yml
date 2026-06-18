@@ -1,23 +1,20 @@
 # =============================================================================
-# TOIA — local development stack.
+# TOIA — self-hosted production stack.
 #
-#   1. cp .env.example .env   (set OPENAI_API_KEY and DB_PASSWORD)
-#   2. docker compose up
-#   3. open http://localhost:4000
+#   docker compose -f docker-compose.prod.yml up -d --build
 #
-# The `api` service (Phoenix) serves both the API and the compiled React app.
-# Recorded media and the database persist in named volumes.
+# Requires a fully populated .env (see .env.example): in particular
+# SECRET_KEY_BASE, GUARDIAN_SECRET_KEY, DATABASE_URL, API_URL and OPENAI_API_KEY.
+# For managed platforms (Railway/Render) see docs/deploy-railway.md instead.
 # =============================================================================
 services:
   mysql:
     image: mysql:8.0.33
     command: --default-authentication-plugin=mysql_native_password
-    restart: on-failure
+    restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_DATABASE}
-    ports:
-      - "3306:3306"
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 5s
@@ -26,40 +23,27 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
 
-  # Optional DB admin UI at http://localhost:8080
-  phpmyadmin:
-    image: phpmyadmin:5.2
-    restart: on-failure
-    depends_on:
-      - mysql
-    ports:
-      - "8080:80"
-    environment:
-      PMA_HOST: mysql
-      UPLOAD_LIMIT: 1024M
-
   api:
     build:
       context: .
       dockerfile: backend/api/Dockerfile
-    restart: on-failure
+    restart: always
     depends_on:
       mysql:
         condition: service_healthy
     environment:
-      MIX_ENV: dev
+      MIX_ENV: prod
+      PHX_SERVER: "true"
     env_file:
       - ./.env
     ports:
       - "4000:4000"
     volumes:
       - api_media:/app/Accounts
-      # Hot code reload in development
-      - ./backend/api/lib:/app/lib
 
   q_api:
     build: ./backend/q_api
-    restart: on-failure
+    restart: always
     depends_on:
       mysql:
         condition: service_healthy
@@ -67,12 +51,10 @@ services:
       - PYTHONUNBUFFERED=1
     env_file:
       - ./.env
-    ports:
-      - "5000:5000"
 
   toia-dm:
     build: ./backend/toia-dm
-    restart: on-failure
+    restart: always
     depends_on:
       mysql:
         condition: service_healthy
@@ -81,8 +63,6 @@ services:
       - DM_PORT=5001
     env_file:
       - ./.env
-    ports:
-      - "5001:5001"
 
 volumes:
   mysql_data:
