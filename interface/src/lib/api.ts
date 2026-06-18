@@ -166,5 +166,9 @@ export const api = {
   // Returns the user's full stream list.
   createStream: (form: FormData) =>
     http.post<Stream[]>("/stream", form).then((r) => r.data),
+
+  // Edit an existing stream's name / privacy (owner only). Returns the stream.
+  updateStream: (id: number | string, changes: { name?: string; private?: boolean }) =>
+    http.patch<Stream>(`/stream/${id}`, { stream: changes }).then((r) => r.data),
 };
 

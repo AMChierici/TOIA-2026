@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CreateStreamDialog } from "@/components/create-stream-dialog";
+import { EditStreamDialog } from "@/components/edit-stream-dialog";
 import { VideoLibrary } from "@/components/video-library";
 
 const TABS = [
@@ -130,9 +131,12 @@ export function DashboardPage() {
                 </CardHeader>
                 <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
                   <span>{stream.videos_count ?? 0} videos</span>
-                  <Button asChild variant="ghost" size="sm">
-                    <Link to={`/stream/${stream.id_stream}`}>Open</Link>
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <EditStreamDialog stream={stream} />
+                    <Button asChild variant="ghost" size="sm">
+                      <Link to={`/stream/${stream.id_stream}`}>Open</Link>
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
