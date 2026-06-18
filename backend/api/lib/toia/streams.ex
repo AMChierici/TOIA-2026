@@ -12,6 +12,7 @@ defmodule Toia.Streams do
   alias Toia.Videos
   alias Toia.VideosQuestionsStreams.VideoQuestionStream
   alias Toia.ToiaUsers
+  alias Toia.ToiaUsers.ToiaUser
   alias ServiceHandlers.DialogueManager
   alias ServiceHandlers.SmartSuggester
 
@@ -33,43 +34,71 @@ defmodule Toia.Streams do
   end
 
   def list_stream(user_id) do
-    query = from(s in Stream, where: s.toia_id == ^user_id)
-    streams = Repo.all(query)
-    # Add stream video count to each stream
-    Enum.map(streams, fn stream ->
-      stream = Map.put(stream, :videos_count, get_videos_count(stream.id_stream))
-      stream = Map.put(stream, :pic, get_stream_pic(stream))
-      stream
-    end)
+    Repo.all(from(s in Stream, where: s.toia_id == ^user_id))
+    |> decorate_streams(false)
   end
 
   def list_public_stream(user_id) do
-    query = from(s in Stream, where: s.toia_id == ^user_id and s.private == false)
-    streams = Repo.all(query)
-    # Add stream video count to each stream
-    Enum.map(streams, fn stream ->
-      stream = Map.put(stream, :videos_count, get_videos_count(stream.id_stream, true))
-      stream = Map.put(stream, :pic, get_stream_pic(stream))
-      stream
-    end)
+    Repo.all(from(s in Stream, where: s.toia_id == ^user_id and s.private == false))
+    |> decorate_streams(true)
   end
 
   def list_accessible_stream(user_id) do
-    query =
-      from(s in Stream,
-        where: s.private == false or s.toia_id == ^user_id
-      )
+    Repo.all(from(s in Stream, where: s.private == false or s.toia_id == ^user_id))
+    |> decorate_streams(false)
+  end
 
-    streams = Repo.all(query)
+  # Add :videos_count and :pic to each stream, batch-loading counts and owner
+  # users in two queries total (instead of two queries per stream).
+  defp decorate_streams([], _public), do: []
 
-    streams =
-      Enum.map(streams, fn stream ->
-        Map.put(stream, :pic, get_stream_pic(stream))
-      end)
+  defp decorate_streams(streams, public) do
+    stream_ids = Enum.map(streams, & &1.id_stream)
+    toia_ids = streams |> Enum.map(& &1.toia_id) |> Enum.uniq()
+
+    counts = videos_count_map(stream_ids, public)
+    users = users_map(toia_ids)
 
     Enum.map(streams, fn stream ->
-      Map.put(stream, :videos_count, get_videos_count(stream.id_stream))
+      stream
+      |> Map.put(:videos_count, Map.get(counts, stream.id_stream, 0))
+      |> Map.put(:pic, stream_pic_url(stream, Map.get(users, stream.toia_id)))
     end)
+  end
+
+  defp videos_count_map(stream_ids, false) do
+    Repo.all(
+      from(vqs in VideoQuestionStream,
+        where: vqs.id_stream in ^stream_ids,
+        group_by: vqs.id_stream,
+        select: {vqs.id_stream, count(vqs.id_video, :distinct)}
+      )
+    )
+    |> Map.new()
+  end
+
+  defp videos_count_map(stream_ids, true) do
+    Repo.all(
+      from(vqs in VideoQuestionStream,
+        join: v in Video,
+        on: v.id_video == vqs.id_video,
+        where: vqs.id_stream in ^stream_ids and v.private == false,
+        group_by: vqs.id_stream,
+        select: {vqs.id_stream, count(vqs.id_video, :distinct)}
+      )
+    )
+    |> Map.new()
+  end
+
+  defp users_map(toia_ids) do
+    Repo.all(from(u in ToiaUser, where: u.id in ^toia_ids))
+    |> Map.new(fn u -> {u.id, u} end)
+  end
+
+  defp stream_pic_url(_stream, nil), do: nil
+
+  defp stream_pic_url(stream, user) do
+    "#{System.get_env("API_URL")}/media/#{user.first_name}_#{user.id}/StreamPic/#{stream.name}_#{stream.id_stream}.jpg"
   end
 
   @doc """
@@ -401,26 +430,23 @@ defmodule Toia.Streams do
   end
 
   def get_videos_count(stream_id) do
-    query =
+    Repo.one(
       from(vqs in VideoQuestionStream,
         where: vqs.id_stream == ^stream_id,
-        select: vqs.id_video
+        select: count(vqs.id_video, :distinct)
       )
-
-    Repo.all(query) |> Enum.uniq() |> length()
+    ) || 0
   end
 
   def get_videos_count(stream_id, _public) do
-    query =
+    Repo.one(
       from(vqs in VideoQuestionStream,
         join: v in Video,
         on: v.id_video == vqs.id_video,
-        where: vqs.id_stream == ^stream_id,
-        where: v.private == false,
-        select: vqs.id_video
+        where: vqs.id_stream == ^stream_id and v.private == false,
+        select: count(vqs.id_video, :distinct)
       )
-
-    Repo.all(query) |> Enum.uniq() |> length()
+    ) || 0
   end
 
   #  `/${fields.toiaName[0]}_${fields.toiaID[0]}/StreamPic/${streamEntry.name}_${streamEntry.id_stream}.jpg`;

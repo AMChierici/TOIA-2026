@@ -14,6 +14,10 @@ defmodule ServiceHandlers.GenerateEmbeddings do
     ]
   end
 
+  def process_request_options(_options) do
+    [timeout: 30_000, recv_timeout: 30_000]
+  end
+
   def process_request_body(%{question: question, answer: answer}) do
     query = "Question: #{question}; Answer: #{answer}"
 
