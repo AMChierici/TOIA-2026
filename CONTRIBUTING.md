@@ -47,8 +47,15 @@ mix format            # formatting is enforced; run before committing
 cd interface
 npm install
 npm start             # dev server on :3000, proxies to the API on :4000
+npm test              # Vitest unit/component tests (run before committing)
+npm run test:watch    # watch mode while developing
 npm run build         # production build (served by Phoenix in deploys)
 ```
+
+We follow **test-driven development** (see [`CLAUDE.md`](CLAUDE.md)): write or
+extend a test first, watch it fail, then make it pass. Frontend tests live next
+to the code as `*.test.ts` / `*.test.tsx`; the production `tsc` build excludes
+them, so type errors in tests surface through Vitest rather than `npm run build`.
 
 ### Python services (`backend/q_api`, `backend/toia-dm`)
 
@@ -74,7 +81,7 @@ models), build from `python:3.12-slim`, and run natively on arm64.
 
 - **backend** — `mix compile` (gate) + `mix test` (informational), against a
   MySQL service container.
-- **frontend** — `npm run build`.
+- **frontend** — `npm test` (Vitest) + `npm run build`.
 - **python** — `py_compile` syntax checks.
 
 Please make sure at least the compile/build steps are green before requesting

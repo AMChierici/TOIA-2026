@@ -82,6 +82,7 @@ cd interface
 cp .env.example .env
 npm install
 npm start          # http://localhost:3000, talks to the API on :4000
+npm test           # Vitest unit/component tests (the project follows TDD)
 ```
 
 ## Configuration
@@ -89,6 +90,19 @@ npm start          # http://localhost:3000, talks to the API on :4000
 All configuration is via environment variables — see [`.env.example`](.env.example)
 for the full, documented list. The only required external key is
 `OPENAI_API_KEY`.
+
+## Database migrations
+
+The schema lives in Ecto migrations (`backend/api/priv/repo/migrations`). You
+**don't normally run them by hand** — the API container's startup script
+(`backend/api/run_prod.sh`) runs `mix ecto.create` + `mix ecto.migrate` (and
+seeds) on every boot, and migrations are idempotent. So:
+
+- **Local Docker:** `docker compose up --build` (or restarting the `api`
+  service) applies any pending migrations.
+- **Railway / Render:** a redeploy applies them.
+- **Running the API bare (no Docker):** `cd backend/api && mix ecto.migrate`
+  (or `mix ecto.setup` on a fresh database).
 
 ## Deployment
 
