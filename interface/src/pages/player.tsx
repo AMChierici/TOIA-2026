@@ -1,16 +1,20 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useCallback, useRef, useState, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { Send } from "lucide-react";
+import { Mic, Send, ThumbsDown, ThumbsUp } from "lucide-react";
 import { api, type NextVideo } from "@/lib/api";
+import { useSpeechToText } from "@/lib/use-speech";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export function PlayerPage() {
   const { id } = useParams<{ id: string }>();
   const [question, setQuestion] = useState("");
   const [current, setCurrent] = useState<NextVideo | null>(null);
+  const [lastQuestion, setLastQuestion] = useState("");
+  const [rated, setRated] = useState(false);
   const [history, setHistory] = useState<{ q: string; a: string }[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -18,18 +22,35 @@ export function PlayerPage() {
     mutationFn: (q: string) => api.nextVideo(id!, q),
     onSuccess: (res, q) => {
       setCurrent(res);
+      setLastQuestion(q);
+      setRated(false);
       setHistory((h) => [...h, { q, a: res.answer }]);
       // Autoplay the new clip.
       requestAnimationFrame(() => videoRef.current?.load());
     },
   });
 
+  const submitQuestion = useCallback(
+    (q: string) => {
+      const trimmed = q.trim();
+      if (!trimmed || ask.isPending) return;
+      ask.mutate(trimmed);
+      setQuestion("");
+    },
+    [ask],
+  );
+
+  const speech = useSpeechToText(submitQuestion);
+
+  const feedback = useMutation({
+    mutationFn: (rating: number) =>
+      api.saveFeedback({ video_id: current!.id_video, question: lastQuestion, rating }),
+    onSuccess: () => setRated(true),
+  });
+
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    const q = question.trim();
-    if (!q || ask.isPending) return;
-    ask.mutate(q);
-    setQuestion("");
+    submitQuestion(question);
   }
 
   return (
@@ -63,15 +84,56 @@ export function PlayerPage() {
           <Input
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Ask something…"
+            placeholder={speech.listening ? "Listening…" : "Ask something…"}
             aria-label="Your question"
           />
+          {speech.supported && (
+            <Button
+              type="button"
+              variant={speech.listening ? "destructive" : "outline"}
+              size="icon"
+              onClick={speech.toggle}
+              aria-label="Ask by voice"
+            >
+              <Mic className={cn(speech.listening && "animate-pulse")} />
+            </Button>
+          )}
           <Button type="submit" disabled={ask.isPending}>
             <Send /> {ask.isPending ? "Thinking…" : "Ask"}
           </Button>
         </form>
         {ask.isError && (
           <p className="text-sm text-destructive">Something went wrong. Please try again.</p>
+        )}
+
+        {current && (
+          <div className="flex items-center gap-3 text-sm">
+            {rated ? (
+              <span className="text-muted-foreground">Thanks for the feedback!</span>
+            ) : (
+              <>
+                <span className="text-muted-foreground">Was this helpful?</span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => feedback.mutate(1)}
+                  disabled={feedback.isPending}
+                  aria-label="Helpful"
+                >
+                  <ThumbsUp />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => feedback.mutate(-1)}
+                  disabled={feedback.isPending}
+                  aria-label="Not helpful"
+                >
+                  <ThumbsDown />
+                </Button>
+              </>
+            )}
+          </div>
         )}
       </div>
 

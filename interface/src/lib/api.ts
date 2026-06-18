@@ -95,6 +95,10 @@ export const api = {
   getFiller: (streamId: number | string) =>
     http.get(`/stream/${streamId}/filler`, { responseType: "text" }).then((r) => r.data as string),
 
+  // Rate a played answer (rating: 1 = helpful, -1 = not helpful).
+  saveFeedback: (payload: { video_id: string; question: string; rating: number }) =>
+    http.post("/player_feedback", payload).then((r) => r.data),
+
   // Upload a recorded video. `form` must include the blob under "video".
   createVideo: (form: FormData) =>
     http.post<{ videoID: string }>("/video", form).then((r) => r.data),
