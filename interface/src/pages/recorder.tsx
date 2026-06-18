@@ -20,17 +20,38 @@ export function RecorderPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const recorder = useRecorder();
+  const editId = searchParams.get("edit");
+  const isEditing = Boolean(editId);
 
   const [question, setQuestion] = useState(searchParams.get("question") ?? "");
   const [answer, setAnswer] = useState("");
   const [videoType, setVideoType] = useState("answer");
   const [streamId, setStreamId] = useState<string>("");
+  const [prefilled, setPrefilled] = useState(false);
 
   const streams = useQuery({
     queryKey: ["user-streams", user?.id],
     queryFn: () => api.listUserStreams(user!.id),
     enabled: Boolean(user),
   });
+
+  // In edit mode, load the existing video and prefill its metadata once.
+  const editing = useQuery({
+    queryKey: ["video", editId],
+    queryFn: () => api.getVideo(editId!),
+    enabled: isEditing,
+  });
+
+  useEffect(() => {
+    if (prefilled || !editing.data) return;
+    const v = editing.data;
+    const firstQuestion = v.questions[0];
+    setQuestion(firstQuestion?.question ?? "");
+    setAnswer(v.answer ?? "");
+    setVideoType(firstQuestion?.suggested_type || "answer");
+    if (v.streams[0]) setStreamId(String(v.streams[0].id_stream));
+    setPrefilled(true);
+  }, [editing.data, prefilled]);
 
   useEffect(() => {
     void recorder.setupCamera();
@@ -63,7 +84,7 @@ export function RecorderPage() {
       form.append("language", user?.language ?? "en-US");
       form.append("videoType", videoType);
       form.append("results", "[]");
-      return api.createVideo(form);
+      return isEditing ? api.updateVideo(editId!, form) : api.createVideo(form);
     },
     onSuccess: () => navigate("/mytoia"),
   });
@@ -172,12 +193,25 @@ export function RecorderPage() {
               </select>
             </div>
 
+            {isEditing && (
+              <p className="text-sm text-muted-foreground">
+                Editing replaces the clip — record a new take before saving.
+              </p>
+            )}
+
             {save.isError && (
               <p className="text-sm text-destructive">Upload failed. Please try again.</p>
             )}
 
             <Button type="submit" className="w-full" disabled={!canSave}>
-              <Upload /> {save.isPending ? "Uploading…" : "Save video"}
+              <Upload />{" "}
+              {save.isPending
+                ? isEditing
+                  ? "Saving…"
+                  : "Uploading…"
+                : isEditing
+                  ? "Save changes"
+                  : "Save video"}
             </Button>
           </form>
         </CardContent>

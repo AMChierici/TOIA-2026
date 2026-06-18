@@ -61,6 +61,44 @@ export interface NextVideo {
   ada_similarity_score: number;
 }
 
+// VideoJSON.index renders this shape (no playback URL, no questions/streams).
+export interface VideoListItem {
+  id_video: string;
+  idx: number;
+  private: boolean;
+  answer: string;
+  language: string;
+  likes: number;
+  views: number;
+  duration_seconds: number;
+  toia_id: number;
+}
+
+export interface VideoQuestion {
+  id_question: number;
+  question: string;
+  priority: number;
+  onboarding: boolean;
+  suggested_type: string;
+  trigger_suggester: boolean;
+}
+
+export interface VideoStreamRef {
+  id_stream: number;
+  name: string;
+  private: boolean;
+  likes: number;
+  views: number;
+  toia_id: number;
+}
+
+// VideoJSON.videoWithInfo adds the playback URL plus linked questions & streams.
+export interface VideoDetail extends VideoListItem {
+  videoURL: string;
+  questions: VideoQuestion[];
+  streams: VideoStreamRef[];
+}
+
 export const api = {
   login: (email: string, password: string) =>
     http.post<AuthResponse>("/auth/login", { email, password }).then((r) => r.data),
@@ -99,9 +137,30 @@ export const api = {
   saveFeedback: (payload: { video_id: string; question: string; rating: number }) =>
     http.post("/player_feedback", payload).then((r) => r.data),
 
+  // List the signed-in user's recorded videos (VideoJSON.index, bare array).
+  listVideos: () => http.get<VideoListItem[]>("/video").then((r) => r.data),
+
+  // Full detail for one video: playback URL + linked questions & streams.
+  getVideo: (id: string) =>
+    http.get<VideoDetail>(`/video/${id}`).then((r) => r.data),
+
   // Upload a recorded video. `form` must include the blob under "video".
   createVideo: (form: FormData) =>
     http.post<{ videoID: string }>("/video", form).then((r) => r.data),
+
+  // Re-record / edit an existing video. The backend deletes the old video and
+  // creates a replacement, so `form` carries the same fields as createVideo
+  // (including a fresh "video" blob). Returns the new video's id.
+  updateVideo: (id: string, form: FormData) =>
+    http.patch<{ videoID: string }>(`/video/${id}`, form).then((r) => r.data),
+
+  // Remove a single question→video link (VideoQuestionStreamController.delete).
+  deleteVideoQuestion: (videoId: string, questionId: number) =>
+    http
+      .delete<{ removedEntries: number }>("/video_question_stream", {
+        params: { video_id: videoId, question_id: questionId },
+      })
+      .then((r) => r.data),
 
   // Create a stream. `form` must include name, private, and a stream_pic file.
   // Returns the user's full stream list.
