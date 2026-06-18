@@ -86,5 +86,5 @@ jobs:
             backend/q_api/utils.py \
             backend/q_api/create_embeddings.py \
             backend/toia-dm/main.py \
-            backend/toia-dm/utils_gpt3.py \
+            backend/toia-dm/dialogue.py \
             backend/toia-dm/create_embeddings.py

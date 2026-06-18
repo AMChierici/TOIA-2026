@@ -58,8 +58,9 @@ pip install -r requirements.txt
 python -m py_compile *.py   # quick syntax check
 ```
 
-`toia-dm` loads ML libraries (torch/transformers) and needs a fair amount of
-RAM; give Docker several GB if it gets OOM-killed.
+`toia-dm` is lightweight (FastAPI + OpenAI embeddings, no local ML models).
+`q_api` still pulls a heavier legacy stack and is pinned to `linux/amd64` for
+prebuilt wheels; give Docker a few GB if it gets OOM-killed while building.
 
 ## Branches & commits
 

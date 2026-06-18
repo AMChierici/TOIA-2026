@@ -1,54 +1,46 @@
+"""TOIA Dialogue Manager.
+
+Given an incoming question for a stream, returns the best-matching recorded
+answer using embedding similarity (OpenAI embeddings + cosine), falling back to
+a random "no-answer" clip when nothing is close enough.
+"""
 import json
-from pydantic.errors import DictError
-import sqlalchemy as db
-from sqlalchemy.sql import text
-from google.cloud.sql.connector import connector
-import pandas as pd
-import numpy as np
 import os
-# from utils import toia_answer, NLP, PS
-from utils_gpt3 import toia_answer
-# from utils_gpt3 import getFirstNSimilar
+
+import numpy as np
 from dotenv import load_dotenv
-import uvicorn
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from sqlalchemy import create_engine, text
+
+from dialogue import answer_for_query
+
 load_dotenv()
 
-required_env_vars = [
-    "ENVIRONMENT",
-    "API_URL",
-    "DB_CONNECTION",
+REQUIRED_ENV = [
     "DB_USERNAME",
     "DB_PASSWORD",
     "DB_HOST",
     "DB_DATABASE",
     "DM_PORT",
-    "OPENAI_API_KEY"
+    "OPENAI_API_KEY",
 ]
+_missing = [v for v in REQUIRED_ENV if not os.environ.get(v)]
+if _missing:
+    raise RuntimeError(f"Missing environment variables: {', '.join(_missing)}")
 
-for env_var in required_env_vars:
-    if not os.environ.get(env_var):
-        raise Exception(f"Missing environment variable {env_var}")
-
+DB_URL = (
+    f"mysql+pymysql://{os.environ['DB_USERNAME']}:{os.environ['DB_PASSWORD']}"
+    f"@{os.environ['DB_HOST']}/{os.environ['DB_DATABASE']}"
+)
+engine = create_engine(DB_URL, pool_pre_ping=True)
 
 ALLOWED_HOSTS = ["*"]
-if os.environ.get("ENVIRONMENT") == "production":
-    ALLOWED_HOSTS = [os.environ.get("API_URL")]
+if os.environ.get("ENVIRONMENT") == "production" and os.environ.get("API_URL"):
+    ALLOWED_HOSTS = [os.environ["API_URL"]]
 
-SQL_URL = "{dbconnection}://{dbusername}:{dbpassword}@{dbhost}/{dbname}".format(dbconnection=os.environ.get("DB_CONNECTION"),dbusername=os.environ.get("DB_USERNAME"),dbpassword=os.environ.get("DB_PASSWORD"),dbhost=os.environ.get("DB_HOST"),dbname=os.environ.get("DB_DATABASE"))
-
-
-ENGINE = db.create_engine(SQL_URL)
-
-METADATA = db.MetaData()
-VIDEOS = db.Table('video', METADATA, autoload=True, autoload_with=ENGINE)
-
-print("Connected successfully!")
-
-app = FastAPI()
-
+app = FastAPI(title="TOIA Dialogue Manager")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_HOSTS,
@@ -57,77 +49,73 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+CANDIDATES_SQL = text(
+    """
+    SELECT vqs.type, vqs.ada_search, q.question,
+           v.id_video, v.toia_id, v.language, v.answer
+    FROM video v
+    JOIN videos_questions_streams vqs ON vqs.id_video = v.id_video
+    JOIN questions q ON q.id = vqs.id_question
+    WHERE vqs.id_stream = :stream_id
+      AND v.private = 0
+      AND vqs.type NOT IN ('filler', 'exit')
+    """
+)
+
+
+def parse_vector(raw):
+    """Parse a stored embedding. New rows store JSON; tolerate legacy formats."""
+    if raw is None:
+        return None
+    if isinstance(raw, (list, tuple)):
+        return np.asarray(raw, dtype=float)
+    try:
+        return np.asarray(json.loads(raw), dtype=float)
+    except (ValueError, TypeError):
+        # Legacy whitespace-separated numpy repr, e.g. "[0.1 0.2 0.3]"
+        cleaned = str(raw).strip().lstrip("[").rstrip("]")
+        return np.fromstring(cleaned, sep=" ")
+
+
 class QuestionInput(BaseModel):
     query: str
     avatar_id: str
     stream_id: str
 
-class DMpayload(BaseModel):  #I know this nesting is stupid --- correct this later in the nodejs backend when defining the payload there
+
+class DMPayload(BaseModel):
     params: QuestionInput
 
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 @app.post("/dialogue_manager")
-def dialogue_manager(payload: DMpayload):
-    raw_payload = payload.params
-    
-    query = raw_payload.query
-    avatar_id = raw_payload.avatar_id
-    stream_id = raw_payload.stream_id
-
-    print(query)
-    print(avatar_id)
-    print(stream_id)
-
-    statement = text("""SELECT videos_questions_streams.id_stream as stream_id_stream, videos_questions_streams.type, videos_questions_streams.ada_search, questions.question, video.id_video, video.toia_id, video.language, video.idx, video.private, video.answer, video.likes, video.views FROM video
-                            INNER JOIN videos_questions_streams ON videos_questions_streams.id_video = video.id_video
-                            INNER JOIN questions ON questions.id = videos_questions_streams.id_question
-                            WHERE videos_questions_streams.id_stream = :streamID AND video.private = 0 AND videos_questions_streams.type NOT IN ('filler', 'exit');""")
-
-    CONNECTION = ENGINE.connect()
-    result_proxy = CONNECTION.execute(statement,streamID=stream_id)
-    result_set = result_proxy.fetchall()
-
-    df_avatar = pd.DataFrame(result_set,
-                                columns=[
-                                    'stream_id_stream',
-                                    'type',
-                                    'ada_search',
-                                    'question',
-                                    'id_video',
-                                    'toia_id',
-                                    'language',
-                                    'idx',
-                                    'private',
-                                    'answer',
-                                    'likes',
-                                    'views',
-                                ])
-
-    df_avatar['ada_search'] = df_avatar.ada_search.apply(eval).apply(np.array)  #needed when np array stored as txt
-
-    # df_greetings = df_avatar[df_avatar['type'] == "greeting"]
-
-    if query is None:
+def dialogue_manager(payload: DMPayload):
+    p = payload.params
+    if not p.query:
         raise HTTPException(status_code=400, detail="Please enter a query")
-        # return 'Please enter a query', 400
 
-    response = toia_answer(query, df_avatar)
+    with engine.connect() as conn:
+        rows = conn.execute(CANDIDATES_SQL, {"stream_id": p.stream_id}).mappings().all()
 
-    print(response)
+    candidates = [
+        {
+            "type": r["type"],
+            "vector": parse_vector(r["ada_search"]),
+            "id_video": r["id_video"],
+            "language": r["language"],
+            "answer": r["answer"],
+        }
+        for r in rows
+    ]
 
-    answer = response[0]
-    id_video = response[1]
-    language = response[2]
-    ada_similarity_score = response[3]
+    return answer_for_query(p.query, candidates)
 
-    result = {
-        'answer': answer,
-        'id_video': id_video,
-        'ada_similarity_score': ada_similarity_score,
-        'language' : language,
-    }
-
-    json.dumps(result)
-    return result
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("DM_PORT")))
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ["DM_PORT"]))

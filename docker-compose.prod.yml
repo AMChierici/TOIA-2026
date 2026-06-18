@@ -56,7 +56,6 @@ services:
 
   toia-dm:
     build: ./backend/toia-dm
-    platform: linux/amd64
     restart: always
     depends_on:
       mysql:

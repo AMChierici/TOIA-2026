@@ -1,79 +1,65 @@
-import os
-from dotenv import dotenv_values
-import openai
-from openai.embeddings_utils import get_embedding
-import pandas as pd
-import numpy as np
-import sqlalchemy as db
-from sqlalchemy.sql import text
+"""Backfill question+answer embeddings for an avatar.
+
+Embeddings are stored in videos_questions_streams.ada_search as a JSON array.
+Run this after recording content, and whenever the embedding model changes:
+
+    python create_embeddings.py --toia <avatar_id>
+"""
 import argparse
-import time
+import json
+import os
 
-parser = argparse.ArgumentParser(description='Pass toia_id to insert embeddings into the db.')
-parser.add_argument('-t', type=int, nargs='+',
-                    help='toia_ids for creating embeddings and insert them into the db')
-args = parser.parse_args()
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
 
-config = dotenv_values()
-# openai.organization = config['YOUR_ORG_ID']
-openai.api_key = config['OPENAI_API_KEY']
+from dialogue import embed
 
-SQL_URL = "{dbconnection}://{dbusername}:{dbpassword}@{dbhost}/{dbname}".format(
-    dbconnection=config["DB_CONNECTION"],
-    dbusername=config["DB_USERNAME"],
-    dbpassword=config["DB_PASSWORD"],
-    dbhost=config["DB_HOST"],
-    dbname=config["DB_DATABASE"])
-# SQL_URL = "{dbconnection}://{dbusername}:{dbpassword}@{dbhost}/{dbname}".format(dbconnection=config["DB_CONNECTION"],dbusername=config["DB_USERNAME"],dbpassword=config["DB_PASSWORD"],dbhost=config["DB_HOST"],dbname=config["DB_DATABASE"])
-print(SQL_URL)
+load_dotenv()
 
-print("Connecting...")
+DB_URL = (
+    f"mysql+pymysql://{os.environ['DB_USERNAME']}:{os.environ['DB_PASSWORD']}"
+    f"@{os.environ['DB_HOST']}/{os.environ['DB_DATABASE']}"
+)
+engine = create_engine(DB_URL, pool_pre_ping=True)
 
-ENGINE = db.create_engine(SQL_URL)
-METADATA = db.MetaData()
-VIDEOS = db.Table('video', METADATA, autoload=True, autoload_with=ENGINE)
+SELECT_SQL = text(
+    """
+    SELECT vqs.id_video, vqs.id_question, q.question, v.answer
+    FROM video v
+    JOIN videos_questions_streams vqs ON vqs.id_video = v.id_video
+    JOIN questions q ON q.id = vqs.id_question
+    WHERE v.toia_id = :toia_id
+    """
+)
 
-print("Connected successfully!")
+UPDATE_SQL = text(
+    """
+    UPDATE videos_questions_streams
+    SET ada_search = :embedding
+    WHERE id_video = :id_video AND id_question = :id_question
+    """
+)
 
-def adaSimilarity(x):
-    time.sleep(1)
-    return get_embedding(x, engine='text-embedding-3-small')
 
-def adaSearch(x):
-    time.sleep(1)
-    return get_embedding(x, engine='text-embedding-3-small')
+def add_ada_search(toia_id):
+    with engine.begin() as conn:
+        rows = conn.execute(SELECT_SQL, {"toia_id": toia_id}).mappings().all()
+        for r in rows:
+            combined = f"Question: {r['question']}; Answer: {r['answer']}"
+            vector = embed(combined)
+            conn.execute(
+                UPDATE_SQL,
+                {
+                    "embedding": json.dumps(vector.tolist()),
+                    "id_video": r["id_video"],
+                    "id_question": r["id_question"],
+                },
+            )
+    print(f"Updated embeddings for {len(rows)} question/answer rows (avatar {toia_id})")
 
-def addAdaSearch(toiaID):
-    retrieve_statement = text("""
-        SELECT v.toia_id, q.question, v.answer, v.id_video, q.id as question_id FROM video v
-        INNER JOIN videos_questions_streams vqs ON vqs.id_video = v.id_video
-        INNER JOIN questions q ON q.id = vqs.id_question
-        WHERE v.toia_id = :toiaID AND v.private = 0 AND vqs.type NOT IN ('filler', 'exit');""")
-    CONNECTION = ENGINE.connect()
-    result_proxy = CONNECTION.execute(retrieve_statement, toiaID=toiaID)
-    result_set = result_proxy.fetchall()
-    df_avatar = pd.DataFrame(result_set,
-                                columns=[
-                                    'toia_id',
-                                    'question',
-                                    'answer',
-                                    'id_video',
-                                    'question_id'
-                                ])
-    df_avatar['combined'] = "Question: " + df_avatar.question.str.strip() + "; Answer: " + df_avatar.answer.str.strip()
-    # This will take just under 2 minutes
-    df_avatar['ada_similarity'] = df_avatar.combined.apply(lambda x: adaSimilarity(x))
-    df_avatar['ada_search'] = df_avatar.combined.apply(lambda x: adaSearch(x))
-
-    for videoID in df_avatar.id_video:
-        adaSearchVar = str(df_avatar[df_avatar['id_video']==videoID].ada_search.values[0])
-        update_statement = text("""
-        UPDATE videos_questions_streams vqs SET ada_search = :adaSearchVal
-        WHERE vqs.id_video = :videoID;
-        """)
-        CONNECTION = ENGINE.connect()
-        CONNECTION.execute(update_statement, adaSearchVal=adaSearchVar, videoID=videoID, toiaID=toiaID)
 
 if __name__ == "__main__":
-    for toiaID in args.t:
-        addAdaSearch(toiaID)
+    parser = argparse.ArgumentParser(description="Backfill DM embeddings for an avatar")
+    parser.add_argument("--toia", required=True, help="Avatar (toia) id to (re)embed")
+    args = parser.parse_args()
+    add_ada_search(args.toia)

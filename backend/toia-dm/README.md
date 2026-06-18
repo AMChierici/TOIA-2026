@@ -1,82 +1,49 @@
-# toia-dm
+# toia-dm — Dialogue Manager
 
-Make sure to edit the code in the src folder to replace the real database in the global variable SQL_URL (or follow the instructions below to create a dummy db).
+A small FastAPI service that, given an incoming question for a stream, returns
+the best-matching recorded answer using OpenAI embeddings + cosine similarity.
 
-Go into this directory
-```bash
-cd toia-dm
-```
+It is normally run as part of the stack (`docker compose up` from the repo
+root). The Phoenix API calls it at `POST /dialogue_manager`.
 
-Install Conda environment using
+## Files
+
+- `main.py` — FastAPI app: loads candidate (question, answer, embedding) rows
+  for a stream from MySQL and returns the best match.
+- `dialogue.py` — embedding (`text-embedding-3-small`) + cosine-similarity logic.
+- `create_embeddings.py` — one-off backfill that (re)computes and stores the
+  per-answer embeddings.
+
+## Configuration
+
+Reads from the shared root `.env` (see the repo's `.env.example`): `DB_*`,
+`OPENAI_API_KEY`, `DM_PORT`. Optional: `EMBEDDING_MODEL`, `SIMILARITY_THRESHOLD`.
+
+## Run locally (without Docker)
+
 ```bash
-conda env create -f toia_dm.yml
-conda activate ds_toia
-```
-And, for environment managers different than conda, use:
-```bash
-python3 -m venv env
-source env/bin/activate
+python -m venv env && source env/bin/activate
 pip install -r requirements.txt
-```
-(P.S. to create requirements.txt, first create virtual environment with venv, then manually install dependancies needed with pip. Porting from conda doesn't work at all)
-
-Install MySql. On Mac:
-```bash
-brew install mysql
-```
-Start MySql and launch mysql prompt. On Mac:
-```bash
-mysql.server start
-mysql_secure_installation
-```
-(follow the steps, nice way to install sql the secure way and can decide if you want to use password or not for root)
-```bash
-mysql -u root -p
-#omit p if didn't setup password
-```
-Source db schema file:
-```bash
-mysql -u root -p < data/toia_db.sql
-```
-You may need to run again
-```bash
-mysql -u root -p
+python main.py            # serves on $DM_PORT (default 5001)
 ```
 
-Use toia db, and add some dummy data:
-```bash
-use toia
-INSERT INTO toia_user(id,first_name,last_name,language,email,password) VALUES (1,"Jon","Doe","en-US","jon.doe@gmail.com","abc123");
-INSERT INTO video(id_video,type,toia_id,idx,private,question,answer,language,likes,views) VALUES("ef1","answer",1,1,0,"How are you?","I am fine thanks!","en-US",5,14);
-INSERT INTO video(id_video,type,toia_id,idx,private,question,answer,language,likes,views) VALUES("0b2","answer",1,2,0,"What is your favorite sport?","I love soccer!","en-US",2,5);
-```
-... and so on. Some example are in data/populate_dummy_data.sql
+Interactive docs: `http://localhost:5001/docs`. Health: `GET /health`.
 
-And run Flask app:
-```bash
-python main.py
-```
+## API
 
-Test using GET request to /dialogue_manager route, send json with body like below:
-```json
+```
+POST /dialogue_manager
 {
-    "query" : "what do you do",
-    "avatar_id" : "1"
-} 
+  "params": { "query": "what do you do", "avatar_id": "1", "stream_id": "1" }
+}
 ```
+Returns `{ answer, id_video, ada_similarity_score, language }`.
 
-Can do in command line using curl, or using postman (screenshot below). Curl has a bug that I haven't figured out yet. It gives a 400 bad request error. Use Postman for now.
+## Embedding backfill
+
+Answers must be embedded before similarity search works. After recording
+content (or after changing `EMBEDDING_MODEL`):
+
 ```bash
-curl -X GET -d @test/request.json -H "Content-Type: application/json" http://127.0.0.1:5000/dialogue_manager
+python create_embeddings.py --toia <avatar_id>
 ```
-
-![alt text](https://github.com/AMChierici/toia-dm/blob/main/test/img/postman.png "Postman screenshot")
-
-When you finish, remember to turn MySQL off:
-```bash
-mysql.server stop
-```
-
-# Testing
-
-Go to `localhost:5001/docs` to test the dialogue manager
